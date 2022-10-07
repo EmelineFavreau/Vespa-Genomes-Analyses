@@ -1,0 +1,10 @@
+###########################
+# overall analysis steps (see scripts directory)
+
+1. analysing-genome-content: quast, busco
+2. orthogroups-analysis: obtain proteins of longer isoforms, run orthofinder to get orthogroups
+3. aligning-orthonucleotides: aligning protein sequences of each species' orthogroup (prank)
+4. duplication-analysis: calculate number of duplication events in branches, blast unique duplication
+5. calculating-dnds: calculate dnds on each orthogroup for branch and branch-site models (paml codeml)
+6. analysing-crabro-rna: map RNA reads of V. crabro to the genome, obtain differentially-expressed genes list (nextflow, DESeq)
+
