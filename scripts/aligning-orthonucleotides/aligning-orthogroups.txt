@@ -1,0 +1,74 @@
+
+###############################################################################
+# Obtaining data
+###############################################################################
+
+
+# protein files
+
+# Vespa crabro - RDSS
+scp -P 2222 ../../Volumes/ritd-ag-project-rd0155-eefav92/Vespa_crabro/genome/data/assembly1/V.crabro.evm.consensus.annotation.v1a.prot.fasta efavreau@localhost:~/VespaCrabro/input/proteins/.
+
+# Vespa velutina - RDSS
+scp -P 2222 ../../Volumes/ritd-ag-project-rd0155-eefav92/Vespa_velutina/structural_annotation/V.velutina.evm.consensus.annotation.v1a.prot.fasta  efavreau@localhost:~/VespaCrabro/input/proteins/.
+
+# Vespa mandarinia
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/014/083/535/GCF_014083535.2_V.mandarinia_Nanaimo_p1.0/GCF_014083535.2_V.mandarinia_Nanaimo_p1.0_protein.faa.gz
+
+# Vespula germanica - ncbi 
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/466/195/GCA_014466195.1_ASM1446619v1/GCA_014466195.1_ASM1446619v1_protein.faa.gz
+
+# Vespula pensylvanica
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/466/175/GCA_014466175.1_ASM1446617v1/GCA_014466175.1_ASM1446617v1_protein.faa.gz
+
+# Vespula vulgaris
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/466/185/GCA_014466185.1_ASM1446618v1/GCA_014466185.1_ASM1446618v1_protein.faa.gz
+
+# Polistes dominula
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/001/465/965/GCF_001465965.1_Pdom_r1.2/GCF_001465965.1_Pdom_r1.2_protein.faa.gz
+
+# Polistes canadensis
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/001/313/835/GCF_001313835.1_ASM131383v1/GCF_001313835.1_ASM131383v1_protein.faa.gz
+
+# Apis mellifera 
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/003/254/395/GCF_003254395.2_Amel_HAv3.1/GCF_003254395.2_Amel_HAv3.1_protein.faa.gz
+
+# Solenopsis invicta
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/016/802/725/GCF_016802725.1_UNIL_Sinv_3.0/GCF_016802725.1_UNIL_Sinv_3.0_protein.faa.gz
+
+
+# decompress and give file a short name
+gzip -d -c GCF_014083535.2_V.mandarinia_Nanaimo_p1.0_protein.faa.gz > V_mandarinia.faa
+gzip -d -c GCA_014466195.1_ASM1446619v1_protein.faa.gz > V_germanica.faa
+gzip -d -c GCA_014466175.1_ASM1446617v1_protein.faa.gz > V_pensylvanica.faa
+gzip -d -c GCA_014466185.1_ASM1446618v1_protein.faa.gz > V_vulgaris.faa
+gzip -d -c GCF_001465965.1_Pdom_r1.2_protein.faa.gz > P_dominula.faa
+gzip -d -c GCF_001313835.1_ASM131383v1_protein.faa.gz > P_canadensis.faa
+gzip -d -c GCF_003254395.2_Amel_HAv3.1_protein.faa.gz > A_mellifica.faa
+gzip -d -c GCF_016802725.1_UNIL_Sinv_3.0_protein.faa.gz > S_invicta.faa
+mv V.velutina.evm.consensus.annotation.v1a.prot.fasta V_velutina.faa
+mv V.crabro.evm.consensus.annotation.v1a.prot.fasta V_crabro.faa
+
+
+
+# keep only one protein per gene (longest isoform)
+# !! vespa crabro and v.velutina are not refseq format
+# create one script per species, because GFFs are all different
+# mitochondrial sequences present
+scripts/longest-isoform_A_mellifera.sh
+scripts/longest-isoform_V_mandarinia.sh
+
+# mito absent
+scripts/longest-isoform_P_canadensis.sh
+scripts/longest-isoform_P_dominula.sh
+scripts/longest-isoform_S_invicta.sh
+scripts/longest-isoform_V_germanica.sh
+scripts/longest-isoform_V_pensylvanica.sh
+scripts/longest-isoform_V_velutina.sh
+scripts/longest-isoform_V_vulgaris.sh
+scripts/longest-isoform_V_crabro.sh
+
+
+# updating Vespa velutina with a new version of genome
+cp ../../Vespa_velutina/input/iVesVel2.1.primary.fa.gz iVesVel2.1.primary-2021-08-12.fa.gz 
+gzip -c -d iVesVel2.1.primary-2021-08-12.fa.gz > Vespa_velutina.fasta

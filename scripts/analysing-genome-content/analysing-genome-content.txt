@@ -1,0 +1,192 @@
+## 2021-08-04
+## Author: Emeline Favreau
+## Objective: obtain genome stats for the genomes
+
+## Analysis steps:
+# Obtaining data
+# Aim 1: Run Busco
+# Aim 2: Run Quast
+# Aim 3: make a comparison of genomes stats
+# Aim 4: synteny analysis
+
+# version of tools used
+BUSCO
+QUAST
+R
+minimap2
+
+###############################################################################
+# aim 1: run busco
+
+
+# run busco
+source /share/apps/source_files/python/python-3.8.5.source
+
+# check lineage
+busco --list-datasets
+
+# check dependencies: need /share/apps/hmmer-3.3.2/bin/hmmsearch and /share/apps/genomics/metaeuk/bin 
+
+# run scripts (they usually take up to 10h, or just over 3h)
+qsub run-busco-vcra.sh
+qsub run-busco-vvel.sh
+qsub run-busco-F_selysi.sh
+qsub run-busco-V_mandarinia.sh
+qsub run-busco-V_germanica.sh
+qsub run-busco-V_pensylvanica.sh
+qsub run-busco-V_vulgaris.sh
+qsub run-busco-P_canadensis.sh
+qsub run-busco-P_dominula.sh 
+qsub run-busco-P_dorsalis.sh
+qsub run-busco-P_fuscatus.sh
+qsub run-busco-P_metricus.sh
+qsub run-busco-A_mellifera.sh
+qsub run-busco-M_genalis.sh
+qsub run-busco-A_echinatior.sh
+qsub run-busco-A_cephalotes.sh
+qsub run-busco-S_invicta.sh
+
+
+#######################################################################################
+# aim 2: run quast
+
+
+# obtain genome file for the following species
+# Vespula germanica 
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/905/340/365/GCA_905340365.1_iyVesGerm1.1/GCA_905340365.1_iyVesGerm1.1_genomic.fna.gz
+
+#Vespula pensylvanica
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/014/466/175/GCA_014466175.1_ASM1446617v1/GCA_014466175.1_ASM1446617v1_genomic.fna.gz
+
+# Vespula vulgaris	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/905/475/345/GCA_905475345.1_iyVesVulg1.1/GCA_905475345.1_iyVesVulg1.1_genomic.fna.gz
+
+
+# Polistes canadensis	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/001/313/835/GCF_001313835.1_ASM131383v1/GCF_001313835.1_ASM131383v1_genomic.fna.gz
+
+# Polistes dominula	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/001/465/965/GCF_001465965.1_Pdom_r1.2/GCF_001465965.1_Pdom_r1.2_genomic.fna.gz
+
+# Polistes dorsalis	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/010/416/905/GCA_010416905.1_CU_Pdor_10/GCA_010416905.1_CU_Pdor_10_genomic.fna.gz
+
+# Polistes fuscatus	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/010/416/935/GCA_010416935.1_CU_Pfus_HIC/GCA_010416935.1_CU_Pfus_HIC_genomic.fna.gz
+
+# Polistes metricus
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/010/416/925/GCA_010416925.1_CU_Pmet_PB/GCA_010416925.1_CU_Pmet_PB_genomic.fna.gz
+
+
+	
+# Apis mellifera	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/003/254/395/GCF_003254395.2_Amel_HAv3.1/GCF_003254395.2_Amel_HAv3.1_genomic.fna.gz
+
+# Megalopta genalis
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/011/865/705/GCF_011865705.1_USU_MGEN_1.2/GCF_011865705.1_USU_MGEN_1.2_genomic.fna.gz
+	
+# Acromyrmex echinatior	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/204/515/GCF_000204515.1_Aech_3.9/GCF_000204515.1_Aech_3.9_genomic.fna.gz
+
+# Atta cephalotes
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/143/395/GCF_000143395.1_Attacep1.0/GCF_000143395.1_Attacep1.0_genomic.fna.gz
+	
+# Formica selysi	
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/009/859/135/GCA_009859135.1_ASM985913v1/GCA_009859135.1_ASM985913v1_genomic.fna.gz
+
+# Solenopsis invicta
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/188/075/GCA_000188075.1_Si_gnG/GCA_000188075.1_Si_gnG_genomic.fna.gz
+
+
+
+
+# run quast for all species
+
+qsub quast-V_mandarinia.sh
+qsub quast-V_mandarinia.sh
+qsub quast-V_germanica.sh
+qsub quast-V_pensylvanica.sh
+qsub quast-V_vulgaris.sh
+qsub quast-P_canadensis.sh
+qsub quast-P_dominula.sh
+qsub quast-P_dorsalis.sh
+qsub quast-P_fuscatus.sh
+qsub quast-P_metricus.sh
+qsub quast-A_mellifera.sh
+qsub quast-M_genalis.sh
+qsub quast-A_echinatior.sh
+qsub quast-A_cephalotes.sh
+qsub quast-F_selysi.sh
+qsub quast-S_invicta.sh
+
+
+
+
+# check quast report to input in supplementary table and for figure 1
+ls */report.txt
+
+# size
+grep "Total length (>= 0 bp) " */report.txt
+
+# Contigs
+grep "# contigs   " */report.txt
+
+# N50
+grep "N50" */report.txt
+
+# L50
+grep "L50" */report.txt
+
+# GC %
+grep "GC (%)" */report.txt
+
+# #Ns per 100 kbp
+grep "# N's per 100 kbp" */report.txt
+
+		
+#########################################################################################
+# aim 3: make a comparison of genomes stats
+https://github.com/pbfrandsen/insect_genome_assemblies
+
+echo "Hymenoptera" > insect_orders.txt 
+
+# download insect data 
+for i in `cat insect_orders.txt`; do ./datasets summary genome taxon $i > $i.json; done
+
+# convert2csv.py uses pandas to convert the json file to a csv
+module load default/python/3.8.5 
+source /share/apps/source_files/python/python-3.8.5.source
+echo "pandas==1.2.5" > requirements.txt
+pip install -r requirements.txt --user
+python3 convert2csv.py Hymenoptera.json
+
+# extract genome stats
+# collect all accession number of all species for which there is a chromosome level assembly
+echo "GCA_017607545.1" > accession_list
+python3 extract_genome_stats.py Hymenoptera_curated.csv test accession_list
+
+# now make a figure in R
+
+
+#########################################################################################
+# aim 4: synteny exploration
+
+# copy genomes on my computer
+scp -P 2222 efavreau@localhost:~/VespaCrabro/input/genomes/V_mandarinia.fasta /Users/emelinefavreau/Documents/.
+
+scp -P 2222 efavreau@localhost:~/VespaCrabro/input/genomes/V_crabro.fasta /Users/emelinefavreau/Documents/.
+
+scp -P 2222 efavreau@localhost:~/VespaCrabro/input/genomes/V_velutina.fasta /Users/emelinefavreau/Documents/.
+
+
+# input in http://dgenies.toulouse.inra.fr/run (minimap2) 
+# the most contiguious as a target
+# target mandarinia / crabro SV0bI_20211102101233
+# target velutina  / mandarinia aIseY_20211102114545
+# target velutina / crabro AyFrT_20211101153439
+
+
+# save figures for supplementary (png -> inkscape)
+SV0bI_20211102101233
+aIseY_20211102114545
+AyFrT_20211101153439

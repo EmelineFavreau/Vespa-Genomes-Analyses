@@ -1,0 +1,91 @@
+---
+title: "Gene Duplication Events tree"
+author: "Emeline Favreau"
+date: "2021/08/16"
+output: html_document
+---
+
+Copyright 2021 Emeline Favreau, University College London.
+
+---
+# Objective of analysis
+
+Make a simple tree for the Vespa genomes paper, including 10 species and the number of gene duplication events at each node and terminal branches.
+
+## Analysis steps:
+- Obtaining data
+- Aim 1: description
+- Aim 2: description
+- Aim 3: description
+- Aim 4: description
+
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse",
+                     "readxl",
+                     "phytools")
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+#BiocManager::install("treeio")
+library("treeio")
+library("ggtree")
+```
+
+
+```{r import data, eval = TRUE, echo = FALSE, include = FALSE}
+# tree file, newick format
+# made by OrthoFinder using single orthologous data
+ortho_tree <- read.newick(file = "../input/SpeciesTree_Gene_Duplications_0.5_Support.txt")
+
+# same topolygy, just a different format
+# inspiredby https://yulab-smu.top/treedata-book/chapter5.html
+ortho_treeNHX_text <- "(A_mellifera:0.10762[&&NHX:D=3901],(((P_canadensis:0.02966[&&NHX:D=2167],P_dominula:0.04439[&&NHX:D=2572])N3:0.06709[&&NHX:D=41],((V_vulgaris:0.00716[&&NHX:D=162],(V_pensylvanica:0.00803[&&NHX:D=184],V_germanica:0.00849[&&NHX:D=326])N7:0.00254[&&NHX:D=86])N5:0.0332[&&NHX:D=232],(V_mandarinia:0.00916[&&NHX:D=2748],(V_velutina:0.00993[&&NHX:D=1108],V_crabro:0.01213[&&NHX:D=1465])N8:0.00212[&&NHX:D=199])N6:0.03212[&&NHX:D=112])N4:0.04067[&&NHX:D=280])N2:0.17172[&&NHX:D=186],S_invicta:0.2395[&&NHX:D=7067])N1:0.10762[&&NHX:D=56])N0[&&NHX:D=84];"
+
+ortho_treeNHX <- read.nhx(textConnection(ortho_treeNHX_text))
+
+```
+
+
+
+```{r aim 1, eval = TRUE, echo = FALSE, include = TRUE}
+# obtain number of duplication events
+duplication_event_df <- data.frame(species = gsub(pattern = "-longest-isoforms_[0-9]*",
+     x = ortho_tree$tip.label, replacement = ""),
+                                   num_events = as.numeric(gsub(pattern = "[A-Z]_[a-z]*-longest-isoforms_",
+     x = ortho_tree$tip.label, replacement = "")),
+     stringsAsFactors = FALSE) 
+
+# update tree tip
+ortho_tree$tip.label <- gsub(pattern = "-longest-isoforms_[0-9]*",
+     x = ortho_tree$tip.label, replacement = "")
+
+
+# make a tree
+ortho_tree %>%
+  ggtree() +
+  geom_tiplab() +
+  theme_tree2() +
+  ggtitle("OrthoFinder Tree")
+
+# make a tree with node labels
+ggtree(ortho_treeNHX) + geom_tiplab() + 
+  ggtitle("Number of Gene Duplication Events") +
+  geom_label(aes(label=D), fill='lightgray',  hjust=1, size = 4)
+  
+
+ggsave(filename = "../figures/2021-08-16-gene-duplication-tree.pdf")
+
+```
+
+
+

@@ -1,0 +1,202 @@
+# Gene Duplication Events data wrangling (Vespa genomes)
+# Emeline Favreau, UCL
+# 2021-08
+
+
+# check number of duplication events per species (also found SpeciesTree_Gene_Duplications_0.5_Support.txt )
+
+cd Results_Aug12_1/Gene_Duplication_Events/
+
+# check number of orthogroups involved in gene duplication events
+# A_mellifera 1972
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "A_mellifera-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# P_canadensis 1607
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "P_canadensis-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# P_dominula 1771
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "P_dominula-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# S_invicta 2624
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "S_invicta-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# V_crabro 514
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "V_crabro-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# V_germanica 225
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "V_germanica-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# V_mandarinia 1856
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "V_mandarinia-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# V_pensylvanica 154
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "V_pensylvanica-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# V_velutina 348
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "V_velutina-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+# V_vulgaris 140
+awk '$5 == "Terminal" { print $0}' Duplications.tsv | awk '$2 == "V_vulgaris-longest-isoforms"' |cut -f 1 | sort | uniq | wc -l
+
+
+
+# make lists of orthogroups involved in duplication events in result
+for species in $(cat ../species_list); do
+	thisspecies="${species}"
+	awk '$5 == "Terminal" { print $0}' orthogroups-analysis/Results_Aug12_1/Gene_Duplication_Events/Duplications.tsv | awk '$2 == "'$thisspecies'-longest-isoforms"' | cut -f 1 | sort | uniq > duplication-analysis/${species}-orthogroups_in_duplication_events
+done
+
+#wc -l duplication-analysis/*-orthogroups_in_duplication_events
+
+# check the unique orthogroups in each species
+touch duplication-analysis/unique_orthogroups_in_duplication_events
+
+# list of all orthogroups
+cat duplication-analysis/*-orthogroups_in_duplication_events | sort -u > duplication-analysis/all_orthogroups_in_duplication_events
+
+for orthogroup in $(cat duplication-analysis/all_orthogroups_in_duplication_events); do
+	occurences=`grep $orthogroup duplication-analysis/*-orthogroups_in_duplication_events | wc -l`
+	if [[ "$occurences" == 1 ]]
+	then
+	  species=`grep $orthogroup duplication-analysis/*-orthogroups_in_duplication_events | cut -d "/" -f 2 | cut -d "-" -f 1`
+  	  echo $orthogroup $species >> duplication-analysis/unique_orthogroups_in_duplication_events
+	fi
+done
+
+# how many for each species?
+for species in $(cat ../species_list); do
+	grep ${species} duplication-analysis/unique_orthogroups_in_duplication_events | wc -l
+done
+
+S_invicta	855
+A_mellifera	395
+P_canadensis	299
+P_dominula	333
+V_velutina	116
+V_crabro	155
+V_mandarinia	447
+V_pensylvanica	99
+V_germanica	118
+V_vulgaris	73
+
+# what are those unique orthogroups?
+# check blast hit for crabro and velutina
+
+
+# step 1: obtain the protein sequences for those orthogroups (find it in the fasta)
+# step 1.1: vespa crabro orthogroups to blast
+grep "V_crabro" result/duplication-analysis/unique_orthogroups_in_duplication_events | cut -d " " -f 1 | sed 's/OG0000000//g' > tmp/V_crabro-proteins-to-blast
+
+touch tmp/V_crabro-protein-names-to-blast
+
+for orthogroup in $(cat tmp/V_crabro-proteins-to-blast); do
+	grep ${orthogroup} result/orthogroups-analysis/Results_Aug12_1/Gene_Duplication_Events/Duplications.tsv | cut -f 6,7 | sed 's/, /\n/g' | sed 's/\t/\n/g' | sort | uniq >> tmp/V_crabro-protein-names-to-blast
+done
+
+# remove the species name
+grep "V_crabro-longest-isoforms" tmp/V_crabro-protein-names-to-blast | sed "s/V_crabro-longest-isoforms_//g" | sort | uniq > tmp/V_crabro-unique-protein-names-to-blast
+
+# find the sequences now
+/share/apps/genomics/seqtk/seqtk subseq input/proteins/V_crabro-short-name.faa tmp/V_crabro-unique-protein-names-to-blast > tmp/V_crabro-protein-and-sequences-to-blast.faa
+
+
+
+# step 1.2 vespa velutina orthogroups to blast
+grep "V_velutina" result/duplication-analysis/unique_orthogroups_in_duplication_events | cut -d " " -f 1  > tmp/V_velutina-proteins-to-blast
+
+touch tmp/V_velutina-protein-names-to-blast
+
+for orthogroup in $(cat tmp/V_velutina-proteins-to-blast); do
+	grep ${orthogroup} result/orthogroups-analysis/Results_Aug12_1/Gene_Duplication_Events/Duplications.tsv | cut -f 6,7 | sed 's/, /\n/g' | sed 's/\t/\n/g' | sort | uniq >> tmp/V_velutina-protein-names-to-blast
+done
+
+# remove the species name
+grep "V_velutina-longest-isoforms" tmp/V_velutina-protein-names-to-blast | sed "s/V_velutina-longest-isoforms_//g" | sort | uniq > tmp/V_velutina-unique-protein-names-to-blast
+
+# find the sequences now
+/share/apps/genomics/seqtk/seqtk subseq input/proteins/V_velutina-short-name.faa tmp/V_velutina-unique-protein-names-to-blast > tmp/V_velutina-protein-and-sequences-to-blast.faa
+
+
+# step 2: blast those protein sequences against Apis, get the top hit
+/share/apps/genomics/blast-2.10.0+/bin/blastp -query tmp/V_crabro-protein-and-sequences-to-blast.faa -entrez_query "honey bee[organism]" -db nr -remote -max_target_seqs 1 -outfmt 6 -out result/duplication-analysis/V_crabro-blast-result
+
+/share/apps/genomics/blast-2.10.0+/bin/blastp -query tmp/V_velutina-protein-and-sequences-to-blast.faa -entrez_query "honey bee[organism]" -db nr -remote -max_target_seqs 1 -outfmt 6 -out result/duplication-analysis/V_velutina-blast-result
+
+# next time I will add a number of threads, and sent for a job
+
+# step 3: copy the results in suppl. materials
+# step 3.1. keep one line per wasp protein (lowest e value, found in column 11)
+#!/bin/bash -l
+for species in V_crabro V_velutina; do
+	cut -f 1 result/duplication-analysis/${species}-blast-result | sort | uniq > tmp/${species}_seq-list
+	touch result/duplication-analysis/${species}-blast-result-filtered
+	for sequence in $(cat tmp/${species}_seq-list); do
+		grep ${sequence} result/duplication-analysis/${species}-blast-result | awk 'NR == 1 || $11 < min {line = $0; min = $11}END{print line}' >> result/duplication-analysis/${species}-blast-result-filtered
+	done
+done
+
+# check that the resulting file has one hit per sequence
+for species in V_crabro V_velutina; do
+	cut -f 1 result/duplication-analysis/${species}-blast-result | sort | uniq | wc -l
+	wc -l result/duplication-analysis/${species}-blast-result-filtered
+done
+
+# step 3.2. add matching orthogroup in a column
+
+for species in V_crabro V_velutina;do
+	cut -f 1 result/duplication-analysis/${species}-blast-result-filtered > tmp/${species}-protein
+
+while read protein
+do
+   grep ${protein} result/orthogroups-analysis/Results_Aug12_1/Gene_Duplication_Events/Duplications.tsv | cut -f 1 | sort | uniq >> tmp/${species}-orthogroup-to-paste-in-blast-results
+done < tmp/${species}-protein
+
+	paste tmp/${species}-orthogroup-to-paste-in-blast-results result/duplication-analysis/${species}-blast-result-filtered > result/duplication-analysis/${species}-blast-result-filtered-with-orthogroups
+done
+
+
+# get the protein title (ie what it does)
+# get the protein, obtain just the definition
+for species in V_crabro V_velutina; do
+	cut -f 3 result/duplication-analysis/${species}-blast-result-filtered-with-orthogroups > tmp/${species}-protein-list
+done
+
+for species in V_crabro V_velutina; do
+	touch tmp/${species}-protein-titles
+done
+
+# remove last empty line, now 501 lines
+sed '/^$/d' tmp/V_crabro-protein-list > tmp/V_crabro-protein-list-clean
+
+
+
+for protein in $(cat tmp/V_crabro-protein-list-clean); do
+	esearch -db protein -query "$protein" | esummary | grep "Title" >> tmp/V_crabro-protein-titles
+done
+
+for protein in $(cat tmp/V_velutina-protein-list); do
+	esearch -db protein -query "$protein" | esummary | grep "Title" >> tmp/V_velutina-protein-titles
+done
+
+
+
+# remove Title string, paste it with protein name and orthogroup
+sed '/^$/d' -i tmp/V_crabro-protein-list
+
+sed "s/    <Title>//g" tmp/V_crabro-protein-titles  | sed "s:</Title>::g" | paste tmp/V_crabro-protein-list - | sed '/^$/d' > tmp/V_crabro-protein-title-two-columns
+
+cut -f 1 result/duplication-analysis/V_crabro-blast-result-filtered-with-orthogroups | paste - tmp/V_crabro-protein-title-two-columns > result/duplication-analysis/V_crabro-unique-orthogroup-protein-title
+
+
+sed "s/    <Title>//g" tmp/V_velutina-protein-titles  | sed "s:</Title>::g" | paste tmp/V_velutina-protein-list - | sed '/^$/d' > tmp/V_velutina-protein-title-two-columns
+
+cut -f 1 result/duplication-analysis/V_velutina-blast-result-filtered-with-orthogroups | sed '/orthogroup/d' | paste - tmp/V_velutina-protein-title-two-columns > result/duplication-analysis/V_velutina-unique-orthogroup-protein-title
+
+
+
+# copy this table into supplementary Table 4
+scp -P 2222 efavreau@localhost:~/VespaCrabro/result/duplication-analysis/V_velutina-unique-orthogroup-protein-title /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_crabro/tables/.
+
+scp -P 2222 efavreau@localhost:~/VespaCrabro/result/duplication-analysis/V_crabro-unique-orthogroup-protein-title /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_crabro/tables/.
+#####################################################################
+

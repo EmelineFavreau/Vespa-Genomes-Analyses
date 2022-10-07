@@ -1,0 +1,91 @@
+
+# WHATIDID for crabro-rna-exploration
+
+# aim 1: obtain biological definitions of those DEGs using Apis mellifera and esearch
+# input needed
+# list of DEGs 
+VespaCrabro/result/analysing-crabro-rna/downregulated_gene_results
+VespaCrabro/result/analysing-crabro-rna/upregulated_gene_results
+
+# make a colunm with just those genes
+cut -f 1 VespaCrabro/result/analysing-crabro-rna/downregulated_gene_results | tail -n+2 > VespaCrabro/result/analysing-crabro-rna/downregulated_genes
+
+cut -f 1 VespaCrabro/result/analysing-crabro-rna/upregulated_gene_results | tail -n+2 > VespaCrabro/result/analysing-crabro-rna/upregulated_genes
+
+cat VespaCrabro/result/analysing-crabro-rna/upregulated_genes VespaCrabro/result/analysing-crabro-rna/downregulated_genes > VespaCrabro/result/analysing-crabro-rna/up_and_downregulated_genes
+
+grep -f VespaCrabro/result/analysing-crabro-rna/up_and_downregulated_genes VespaCrabro/input/vespids_primary_transcripts/V_crabro-longest-isoforms.faa | sed "s/>//g" > VespaCrabro/tmp/V_crabro-up_and_downregulated_prot_list
+
+# get their sequences in VespaCrabro/input/vespids_primary_transcripts/V_crabro-longest-isoforms.faa
+/share/apps/genomics/seqtk/seqtk subseq VespaCrabro/input/vespids_primary_transcripts/V_crabro-longest-isoforms.faa VespaCrabro/tmp/V_crabro-up_and_downregulated_prot_list > VespaCrabro/input/analysing-crabro-rna/V_crabro-up_and_downregulated.faa
+
+# create a database for Apis
+/share/apps/genomics/blast-2.10.0+/bin/makeblastdb -in /SAN/ugi/VespaCrabro/input/proteins/A_mellifera.faa \
+        -parse_seqids \
+        -dbtype prot
+
+
+# blast them against Apis proteins (to obtain biological definitions)
+qsub VespaCrabro/scripts/orthogroups-analysis/blastp-V_crabro-deg-against-apis.sh
+
+# check logs 
+
+# check result
+/SAN/ugi/VespaCrabro/tmp/analysing-crabro-rna/deg
+
+# this gives multiple hits per query (bee/wasp)
+# keep the hit that has the lowest p value
+
+# make a list of crabro protein
+cut -f 1 VespaCrabro/tmp/analysing-crabro-rna/deg | sort | uniq > VespaCrabro/tmp/analysing-crabro-rna/crabro-rna_seq-list
+
+# empty file where result will be put
+touch VespaCrabro/tmp/analysing-crabro-rna/deg_filtered
+
+# for each crabro sequence, keep the hit that has lowest pvalue
+for sequence in $(cat VespaCrabro/tmp/analysing-crabro-rna/crabro-rna_seq-list); do
+      grep ${sequence} VespaCrabro/tmp/analysing-crabro-rna/deg | awk 'NR == 1 || $11 < min {line = $0; min = $11}END{print line}' >> VespaCrabro/tmp/analysing-crabro-rna/deg_filtered
+done
+
+
+# check that the resulting file has one hit per sequence
+cut -f 1 VespaCrabro/tmp/analysing-crabro-rna/deg| sort | uniq | wc -l
+wc -l VespaCrabro/tmp/analysing-crabro-rna/deg_filtered
+
+
+# Table of corresponding crabro deg and droso gene names
+VespaCrabro/tmp/analysing-crabro-rna/deg_filtered
+
+# get the Apis names into one file (input to esearch)
+cut -f 2 VespaCrabro/tmp/analysing-crabro-rna/deg_filtered | sort | uniq > VespaCrabro/tmp/analysing-crabro-rna/apis-equivalent-to-crabro-deg
+ 
+
+# run in a screen
+tmux new-session
+
+# obtain for each protein the title (biological definition) HERE
+for protein in $(cat VespaCrabro/tmp/analysing-crabro-rna/apis-equivalent-to-crabro-deg); do
+    title=`esearch -db protein -query "$protein" | esummary | grep "Title"`
+    echo  ${protein} ${title} >> VespaCrabro/tmp/analysing-crabro-rna/Apis-protein-titles
+done
+
+# check the file
+wc -l VespaCrabro/tmp/analysing-crabro-rna/Apis-protein-titles
+head VespaCrabro/tmp/analysing-crabro-rna/Apis-protein-titles
+tail VespaCrabro/tmp/analysing-crabro-rna/Apis-protein-titles
+
+
+# make a table: crabro | protein | definition
+while read protein; do
+        definition=`grep $protein VespaCrabro/tmp/analysing-crabro-rna/Apis-protein-titles | cut -d ">" -f 2 | sed "s/<.*//g"`
+        crabro=`grep $protein VespaCrabro/tmp/analysing-crabro-rna/deg_filtered | cut -f 1`
+        echo -e "$crabro\t$protein\t$definition" >> VespaCrabro/result/analysing-crabro-rna/deg-protein-definition
+done < VespaCrabro/tmp/analysing-crabro-rna/apis-equivalent-to-crabro-deg
+
+
+# tidy this table and add a column for under or over expressed in gynes
+cut -f 1 VespaCrabro/result/analysing-crabro-rna/downregulated_gene_results | grep -f - VespaCrabro/result/analysing-crabro-rna/deg-protein-definition | sort -k3 > VespaCrabro/result/analysing-crabro-rna/downregulated-protein-definition
+
+cut -f 1 VespaCrabro/result/analysing-crabro-rna/upregulated_gene_results  | grep -f - VespaCrabro/result/analysing-crabro-rna/deg-protein-definition | sort -k3 > VespaCrabro/result/analysing-crabro-rna/upregulated-protein-definition
+
+# save these tables for supplementary info

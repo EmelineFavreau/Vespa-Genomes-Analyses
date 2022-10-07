@@ -1,0 +1,37 @@
+# Using Nextflow pipeline to map rna reads to genome with QC steps
+
+# copy input files: RNAseq raw reads, genome fasta, gff
+scp ssh.rd.ucl.ac.uk:/rd/live/ritd-ag-project-rd00pm-cdrwy41/Vespa_crabro/RNAseqData/*{1,2}.fq.gz .
+
+scp –r ssh.rd.ucl.ac.uk:/rd/live/ritd-ag-project-rd00pm-cdrwy41/Vespa_crabro/genome/data/assembly1/V.crabro.RM.hymenoptera.fasta .
+
+scp –r ssh.rd.ucl.ac.uk:/rd/live/ritd-ag-project-rd00pm-cdrwy41/Vespa_crabro/genome/data/assembly1/V.crabro.evm.consensus.annotation.v1a.gff3 .
+
+# make a working directory
+mkdir STAR-4W-5G-2Q
+
+# copy config file 
+cp myriad.config STAR-4W-5G-2Q/.
+
+cd STAR-4W-5G-2Q
+
+# run it in a screen
+tmux new-session
+
+# load nextflow (myriad argument)
+module load blic-modules
+module load nextflow/19.10.0.5170
+
+nextflow run nf-core/rnaseq \
+        --reads '/lustre/scratch/scratch/ucfaeef/nextflow-test/input/4W-5G-2Q/*{1,2}.fq.gz' \
+        --fasta /lustre/scratch/scratch/ucfaeef/nextflow-test/input/V.crabro.RM.hymenoptera.fasta \
+        --gff /lustre/scratch/scratch/ucfaeef/nextflow-test/input/V.crabro.evm.consensus.annotation.v1a.gff3 \
+        --forwardStranded \
+        --skipBiotypeQC \
+        --fc_group_features gene_id \
+        -r 1.4.2 \
+        -c /lustre/scratch/scratch/ucfaeef/nextflow-test/tmp/STAR-4W-5G-2Q/myriad.config \
+        -with-tower \
+        -bg \
+        -resume \
+        --outdir /lustre/scratch/scratch/ucfaeef/nextflow-test/result/STAR-4W-5G-2Q

@@ -1,0 +1,223 @@
+#########################################
+# Running branch models
+
+# tree is in foreground branch mode only for alternative model
+
+# change this string as needed
+species="Vespa"
+
+# make template
+/SAN/ugi/VespaCrabro/input/config-files/${species}-template_M2.ctl
+
+# make tree (foreground branch)
+/SAN/ugi/VespaCrabro/input/trees/${species}-tree.newick
+
+# make log folder
+Codeml${species}Branch
+
+# script to run
+qsub VespaCrabro/scripts/calculating-branch-dnds-${species}.sh 
+
+
+#########################################
+# check if grid failed some orthogroups 
+
+
+# missing some 
+while read orthogroup; do
+   grep -L "Time used" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-${orthogroup}  || echo ${orthogroup}
+done < VespaCrabro/tmp/aligned-orthogroups-2021-09-09 
+
+while read orthogroup; do
+   grep -L "Time used" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-${orthogroup}  || echo ${orthogroup}
+done < VespaCrabro/tmp/aligned-orthogroups-2021-09-09 
+
+# make a list of OG missing 
+VespaCrabro/tmp/${species}-OG-missing
+
+
+#########################################
+# run in interactive node if needed 
+
+
+#########################################
+# collect info for supplementary 
+
+
+grep "omega" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-* | sed "s/ //g" | cut -d "=" -f 2 > VespaCrabro/tmp/${species}-w_M0
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-* | sed "s/ //g" | cut -d ")" -f 1 | cut -d ":" -f 4 > VespaCrabro/tmp/${species}-np_M0
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-* | sed "s/ //g"  | cut -d "+" -f 1 | cut -d ":" -f 5 > VespaCrabro/tmp/${species}-lnL_M0
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-* | sed "s/ //g" | cut -d ")" -f 1 | cut -d ":" -f 4 > VespaCrabro/tmp/${species}-np_M2
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-* | sed "s/ //g"  | cut -d "+" -f 1 | cut -d ":" -f 5 > VespaCrabro/tmp/${species}-lnL_M2
+
+grep "w (dN/dS) for branches" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-* | cut -d " " -f 7 > VespaCrabro/tmp/${species}-foreground_w
+
+grep "w (dN/dS) for branches" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-* | cut -d " " -f 6 > VespaCrabro/tmp/${species}-background_w
+
+grep "kappa" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-* | cut -d " " -f 5 > VespaCrabro/tmp/${species}-kappa_M2
+
+# check line number
+wc -l VespaCrabro/tmp/${species}-w_M0
+wc -l VespaCrabro/tmp/${species}-np_M0
+wc -l VespaCrabro/tmp/${species}-lnL_M0
+wc -l VespaCrabro/tmp/${species}-np_M2
+wc -l VespaCrabro/tmp/${species}-lnL_M2
+wc -l VespaCrabro/tmp/${species}-foreground_w
+wc -l VespaCrabro/tmp/${species}-background_w
+wc -l VespaCrabro/tmp/${species}-kappa_M2
+
+
+# combine into one table
+echo -e "orthogroup\tw_M0\tnp_M0\tlnL_M0\tnp_M2\tlnL_M2\tbackground_w\tforeground_w\tkappa_M2\tD\tDF\tchiTest" > VespaCrabro/tmp/${species}-codeml-result-table
+
+paste VespaCrabro/tmp/aligned-orthogroups-2021-09-09 VespaCrabro/tmp/${species}-w_M0 VespaCrabro/tmp/${species}-np_M0 VespaCrabro/tmp/${species}-lnL_M0 VespaCrabro/tmp/${species}-np_M2 VespaCrabro/tmp/${species}-lnL_M2 VespaCrabro/tmp/${species}-foreground_w VespaCrabro/tmp/${species}-background_w VespaCrabro/tmp/${species}-kappa_M2 >> VespaCrabro/tmp/${species}-codeml-result-table
+
+
+
+
+###########################################################################
+# copy data on computer 
+
+
+scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/${species}-codeml-result-table Google\ Drive/Sumner_projects/species/vespa_genomes/input/dnds-branch-model-tables/${species}/. 
+
+# tidy data 
+# change species as needed
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris Vespa Vespula
+species="Vespula"
+mkdir VespaCrabro/result/calculating-dnds/branch-model/${species}/OG-result-files
+mv VespaCrabro/result/calculating-dnds/branch-model/${species}/OG*-codeml-result-table VespaCrabro/result/calculating-dnds/branch-model/${species}/OG-result-files/.
+
+
+mkdir VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-files
+mkdir VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-files
+
+
+mv VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-* VespaCrabro/result/calculating-dnds/branch-model/${species}/M0-files/.
+
+mv VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-* VespaCrabro/result/calculating-dnds/branch-model/${species}/M2-files/.
+
+
+mv VespaCrabro/tmp/${species}-codeml-result-table VespaCrabro/result/calculating-dnds/branch-model/${species}/.
+
+
+mv VespaCrabro/result/calculating-dnds/branch-model/V_velutina/velutina_branch_dnds VespaCrabro/result/calculating-dnds/branch-model/V_velutina/OG-result-files/.
+
+ls VespaCrabro/result/calculating-dnds/branch-*model/*/
+#########################################
+#########################################
+# Running branch-site models (BS)
+
+# fix omega for null hypothesis, do not fix omega for alternative hypothesis
+# same tree file for each run (the tree file with foreground marked)
+
+# change this string as needed
+species="Vespa"
+
+# make template
+/SAN/ugi/VespaCrabro/input/config-files/BS/${species}-template_M2.ctl
+
+# make tree (foreground branch)
+/SAN/ugi/VespaCrabro/input/trees/${species}-tree.newick
+
+# make log folder
+Codeml${species}BranchSite 
+
+# script to run
+qsub VespaCrabro/scripts/calculating-branch-site-dnds-${species}.sh 
+
+#########################################
+# check if grid failed some orthogroups (BS)
+
+# missing some 
+while read orthogroup; do
+   grep -L "Time used" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M0-${orthogroup}  || echo ${orthogroup}
+done < VespaCrabro/tmp/aligned-orthogroups-2021-09-09 
+
+while read orthogroup; do
+   grep -L "Time used" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M2-${orthogroup}  || echo ${orthogroup}
+done < VespaCrabro/tmp/aligned-orthogroups-2021-09-09 
+
+# make a list of OG missing 
+
+VespaCrabro/tmp/${species}-BS-OG-missing
+
+#########################################
+# run in interactive node if needed (BS)
+
+
+while read orthogroup; do
+	species="V_vulgaris"
+	cp /SAN/ugi/VespaCrabro/input/config-files/BS/template_M0.ctl /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M0.ctl
+	sed --in-place "s/OG/${orthogroup}/g" /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M0.ctl
+	sed --in-place "s/species/${species}/g" /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M0.ctl
+	/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/codeml /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M0.ctl
+	cp /SAN/ugi/VespaCrabro/input/config-files/BS/${species}-template_M2.ctl /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M2.ctl
+	sed --in-place "s/OG/${orthogroup}/g" /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M2.ctl
+	sed --in-place "s/species/${species}/g" /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M2.ctl	
+	/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/codeml /SAN/ugi/VespaCrabro/input/config-files/BS/${species}/${orthogroup}_M2.ctl
+	
+done < VespaCrabro/tmp/${species}-BS-OG-missing
+
+
+#########################################
+# collect info for supplementary (BS)
+
+# collect variables
+# likelihood values lnL1 and lnL0 from omegaNotFixed (alternative hypothesis, M2) and omegaFixed (null hypothesis, M0).
+# number of parameters np1 and np0 from omegaNotFixed and omegaFixed.
+
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M0-* | sed "s/ //g" | cut -d ")" -f 1 | cut -d ":" -f 4 > VespaCrabro/tmp/${species}-BS-np_M0
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M0-* | sed "s/ //g"  | cut -d "+" -f 1 | cut -d ":" -f 5 > VespaCrabro/tmp/${species}-BS-lnL_M0     
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M2-* | sed "s/ //g" | cut -d ")" -f 1 | cut -d ":" -f 4 > VespaCrabro/tmp/${species}-BS-np_M1 
+
+grep "lnL" /SAN/ugi/VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M2-* | sed "s/ //g"  | cut -d "+" -f 1 | cut -d ":" -f 5 > VespaCrabro/tmp/${species}-BS-lnL_M1 
+
+# check line number
+wc -l VespaCrabro/tmp/${species}-BS-np_M0
+wc -l VespaCrabro/tmp/${species}-BS-lnL_M0  
+wc -l VespaCrabro/tmp/${species}-BS-np_M1 
+wc -l VespaCrabro/tmp/${species}-BS-lnL_M1 
+
+# combine into one table
+echo -e "orthogroup\tnp_M0\tlnL_M0\tnp_M1\tlnL_M2\tchiTestpvalue" > VespaCrabro/tmp/${species}-BS-codeml-result-table
+
+paste VespaCrabro/tmp/aligned-orthogroups-2021-09-09 VespaCrabro/tmp/${species}-BS-np_M0 VespaCrabro/tmp/${species}-BS-lnL_M0 VespaCrabro/tmp/${species}-BS-np_M1 VespaCrabro/tmp/${species}-BS-lnL_M1  >> VespaCrabro/tmp/${species}-BS-codeml-result-table
+
+
+
+###########################################################################
+# copy data on computer (BS)
+
+# in one terminal on local machine
+ssh -L 2222:pchuckle.cs.ucl.ac.uk:22 efavreau@tails.cs.ucl.ac.uk
+
+# in another
+species="Vespa"
+scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/${species}-BS-codeml-result-table /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_genomes/input/dnds-branch-site-model-tables/${species}/.
+
+# tidy data 
+# change species as needed
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris Vespa Vespula
+species="Vespula"
+mkdir VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M0-files
+mkdir VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M2-files
+
+mv VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M0-* VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M0-files/.
+
+mv VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M2-* VespaCrabro/result/calculating-dnds/branch-site-model/${species}/M2-files/.
+
+mv VespaCrabro/tmp/${species}-BS-codeml-result-table VespaCrabro/result/calculating-dnds/branch-site-model/${species}/.
+
+rm -rf ~/logs/*Site*
+rm -rf VespaCrabro/tmp/*-BS-*
+
+#######
+###########################################################################

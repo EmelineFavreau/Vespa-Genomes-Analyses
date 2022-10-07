@@ -1,0 +1,780 @@
+---
+title: "Vespa crabro: Differential Gene Expression Analysis"
+author: "Emeline Favreau"
+date: "04/12/2020"
+output: html_document
+---
+Copyright 2020 Emeline Favreau, University College London.
+
+
+### Objectives of analysis
+Brains of workers (5 pools), gynes (5 pools) and 1 queen (no pool) of _Vespa crabro_ have been sequenced for RNA.
+The behavioural differences between castes are expected to be measured using brain RNAseq as proxy.
+Which genes are significantly differentially expressed between castes?
+
+### Analysis steps:
+- Obtaining data
+- Formatting data
+- Aim 1: Run DESeq2 on all samples
+- Aim 2: Run DESeq2 on female samples
+- Aim 3: Run DESeq2 on female samples (no queen)
+- Aim 4: Compare DEG and positive selection
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+#install.packages("BiocManager")
+#BiocManager::install("DESeq2")
+# BiocManager::install("apeglm")
+
+
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse",
+                     "DESeq2",
+                     "apeglm",
+                     "pheatmap",
+                     "RColorBrewer",
+                     "readr")
+
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+```
+
+```{r import data, eval = TRUE, echo = FALSE, include = FALSE}
+# add all the files needed here, with descriptions
+
+# matrix of read counts from Nextflow QC pipeline
+# including gene ID as row
+# samples as columns
+# queens: VC, VCQ2
+# gynes: VCG1, VCG2, VCG3, VCG4, VCG5 
+# workers: VC_W1, VC_W5, VC_W6, VC_W7
+cts <- as.matrix(read.csv("../../result/analysing-crabro-rna/merged_gene_counts.txt",
+                          sep = "\t",
+                          row.names = "Geneid"))
+
+# the list of positive genes that Jadesada did
+# headers: Orthogroup	GCA_001276565.1_Meliquad_ASM127656v1_protein	GCF_000188075.2_Soleninv_gnH_protein	GCF_000214255.1_Bombuster_1.0_protein	GCF_001313835.1_PoliscanaASM131383v1_protein(1)	GCF_001465965.1_Polisdom_r1.2_protein(1)	GCF_001652005.1_CeratinecalASM165200v1_protein	GCF_003227725.1_Campflo_v7.5_protein	GCF_003254395.2_Apismel_HAv3.1_protein	Lasiogalb_OGS_v5.42.pep.simpleName	V.crabro.evm.consensus.annotation.v1a.prot.fasta.largestIsoform
+Orthogroups_under_positive_selection_df <- read_csv("../../result/analysing-crabro-rna/List_Orthogroups_under_positive_selection.csv")
+
+```
+
+
+
+```{r formatting data, eval = TRUE, echo = FALSE, include = TRUE}
+# remove gene_name
+# unique(cts[, 1])df[,!names(df) %in% c("remove_me", "remove_me_too")]
+cts1 <- cts[, !colnames(cts) %in% c("gene_name")]
+
+# check sample order 
+# colnames(cts1)
+
+# make a phenotype data
+# sample | reproductives | castes
+# reproductives = (queens and gynes) or workers
+# reproductives_vec <- 
+# castes = workers or not
+pheno_df <- data.frame(colnames(cts1),
+                       colnames(cts1),
+                       colnames(cts1),
+                       row.names = colnames(cts1),
+                       stringsAsFactors = FALSE)
+
+# name the columns
+colnames(pheno_df) <- c("sex", "reproduction", "caste")
+
+
+# categorise samples by sex
+pheno_df$sex[grep(pattern = "VC_1",
+                           x = colnames(cts1),
+                           value = FALSE)] <- "male"
+
+pheno_df$sex[grep(pattern = "VC_1",
+                           x = colnames(cts1),
+                           value = FALSE,
+                  invert = TRUE)] <- "female"
+
+
+# categorise samples by reproduction
+pheno_df$reproduction[grep(pattern = "VC_W",
+                           x = colnames(cts1),
+                           value = FALSE)] <- "nonReproductive"
+
+pheno_df$reproduction[grep(pattern = "VC_W",
+                           x = colnames(cts1),
+                           value = FALSE,
+                      invert = TRUE)] <- "reproductive"
+
+
+# categorise samples by caste
+pheno_df$caste[grep(pattern = "VC_W",
+                           x = colnames(cts1),
+                           value = FALSE)] <- "worker"
+
+pheno_df$caste[grep(pattern = "VCG",
+                           x = colnames(cts1),
+                           value = FALSE)] <- "gyne"
+
+pheno_df$caste[grep(pattern = "VCQ",
+                           x = colnames(cts1),
+                           value = FALSE)] <- "queen"
+
+pheno_df$caste[grep(pattern = "VC_1",
+                           x = colnames(cts1),
+                           value = FALSE)] <- "male"
+
+
+
+# change the names for biological meaningful
+rownames(pheno_df) <-c("gyne4",
+                       "worker5",
+                       "male1",
+                       "gyne1",
+                       "worker7",
+                       "gyne2", 
+                       "gyne5",
+                       "worker6",
+                       "queen2",
+                       "gyne3",
+                       "worker1")
+
+colnames(cts1) <- rownames(pheno_df)
+
+# change class for factor
+pheno_df$sex          <- factor(pheno_df$sex)
+pheno_df$reproduction <- factor(pheno_df$reproduction)
+pheno_df$caste        <- factor(pheno_df$caste)
+
+# check that sample order is consistent across both objects
+# all(rownames(pheno_df) == colnames(cts1))
+# Sample order is consistent across both objects.
+```
+
+```{r create function for more axes in PCA, eval = TRUE, echo = FALSE, include = TRUE}
+plotPCA.DESeqTransform.moreAxes = function(object,
+                                           intgroup = "condition",
+                                           ntop = 500,
+                                           x_axis = 1,
+                                           y_axis = 2,
+                                           returnData = FALSE)
+{
+  # calculate the variance for each gene
+  rv <- rowVars(assay(object))
+
+  # select the ntop genes by variance
+  select <- order(rv, decreasing=TRUE)[seq_len(min(ntop, length(rv)))]
+
+  # perform a PCA on the data in assay(x) for the selected genes
+  pca <- prcomp(t(assay(object)[select,]))
+
+  # the contribution to the total variance for each component
+  percentVar <- pca$sdev^2 / sum( pca$sdev^2 )
+
+  if (!all(intgroup %in% names(colData(object)))) {
+    stop("the argument 'intgroup' should specify columns of colData(dds)")
+  }
+
+  intgroup.df <- as.data.frame(colData(object)[, intgroup, drop=FALSE])
+  
+  # add the intgroup factors together to create a new grouping factor
+  group <- if (length(intgroup) > 1) {
+    factor(apply( intgroup.df, 1, paste, collapse=":"))
+  } else {
+    colData(object)[[intgroup]]
+  }
+
+  # assembly the data for the plot
+  d <- data.frame(x_axis_for_pca = pca$x[, x_axis],
+                  y_axis_for_pca = pca$x[, y_axis],
+                  group = group,
+                  intgroup.df,
+                  name = colnames(object))
+
+  if (returnData) {
+    attr(d, "percentVar") <- percentVar[x_axis:y_axis]
+    return(d)
+  }
+  
+  my_x_axis_name <- paste("PC", x_axis, sep = "_")
+  my_y_axis_name <- paste("PC", y_axis, sep = "_")
+  
+  x_PC <- paste("PC", x_axis, sep = "")
+  y_PC <- paste("PC", y_axis, sep = "")
+  
+  ggplot(data = d,
+         aes_string(x = d$x_axis_for_pca,
+                    y = d$y_axis_for_pca,
+                    color = "group")) + 
+          
+          geom_point(size = 3) + 
+          
+    xlab(paste0(my_x_axis_name, ": ",
+                round(percentVar[x_axis] * 100),
+                "% variance")) +
+          
+      ylab(paste0(my_y_axis_name, ": ",
+                  round(percentVar[y_axis] * 100),
+                  "% variance")) +
+          
+        coord_fixed()
+}
+
+
+
+```
+
+
+### Aim 1: Run DESeq2 on all samples
+
+I first check potential sample outliers looking at normalised read counts (with a heatmap, a sample-to-sample dendogram, a PCA) and a barplot of DEG value ranges.
+
+```{r aim 1 basic DEA all samples, eval = TRUE, echo = FALSE, include = TRUE}
+# remove genes for which all samples have zero counts
+# because it is not biological meaningful in our analysis
+cts2 <- cts1[(rowSums(cts1) != 0), ]
+
+# make a DESeq dataset
+# measure the effect of reproduction
+dds <- DESeqDataSetFromMatrix(countData = cts2,
+                              colData   = pheno_df,
+                              design    = ~ reproduction)
+
+# I could filter low count genes (not so sure how to decide this)
+
+# run the analysis
+dds <- DESeq(dds)
+
+# lists the coefficients: here reproductive vs non-reproductives
+# resultsNames(dds) 
+
+
+# data to explore
+my_data <- dds
+
+# Read counts after data transformation
+# obtain data for the first 20 genes
+select <- order(rowMeans(counts(my_data,
+                                normalized = TRUE)),
+                decreasing = TRUE)[1:20]
+
+# make a dataframe for reproduction
+df <- as.data.frame(colData(my_data)[, c("reproduction")])
+
+# name the column and rows
+colnames(df) <- "castes"
+
+
+# create a DESeqTransform object 
+# this gives log2(n + 1), the most basic transformation
+ntd <- normTransform(my_data)
+
+rownames(df) <- colnames(assay(ntd)[select, ])
+
+# plot a heat map
+pheatmap(assay(ntd)[select, ],
+         cluster_rows    = FALSE,
+         show_rownames   = FALSE,
+         cluster_cols    = FALSE,
+         annotation_col  = df,
+         legend_labels   = "Caste",
+         main            = "Counts of 20 top genes after log2 + 1")
+
+
+
+# explore sample-tp-sample distances
+sampleDists <- dist(t(assay(ntd)))
+
+sampleDistMatrix <- as.matrix(sampleDists)
+
+rownames(sampleDistMatrix) <- ntd$caste
+
+colnames(sampleDistMatrix) <- NULL
+
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists,
+         col = colors,
+         main = "Sample-to-sample distances")
+
+
+# the samples cluster queen and worker, vs gynes!
+# this is probably because the gynes are young, and the workers and queen are old
+# (we have no age data associated with this dataset)
+
+## set the PCs 
+x_axis <- 1
+y_axis <- 2
+
+# run the plot
+plotPCA.DESeqTransform.moreAxes(ntd,
+                        intgroup = c("caste"),
+                        x_axis = x_axis,
+                        y_axis = y_axis)
+
+
+# check for sample outlier
+boxplot(log10(assays(dds)[["cooks"]]),
+         range = 0,
+         las = 2)
+
+
+# extract a results table with log2 fold changes, p values (nonadj and adj)
+res <- results(dds,
+               name = "reproduction_reproductive_vs_nonReproductive")
+
+# p-values exploration
+resOrdered <- res[order(res$pvalue), ]
+# summary(res)
+
+# change results for 0.05 cut-off
+res05 <- results(dds, alpha = 0.05)
+
+# explore results when 0.05 is the cut-off
+# summary(res05)
+
+# 8 NAs in raw p-values
+# summary(res05$pvalue)
+# hist(res05$pvalue)
+
+# 2593 NAs in adjusted p-values
+# summary(res05$padj)
+# hist(res05$padj)
+
+# how many genes are significantly differentially expressed: 269
+#sum(res05$padj < 0.05, na.rm = TRUE)
+
+# # log fold change shrinkage for visualization and ranking
+# # shrink log fold changes association with condition:
+# # use the apeglm method for effect size shrinkage 
+# # (Zhu, Ibrahim, and Love 2018), which improves on the previous estimator.
+# res1 <- lfcShrink(dds,
+#                   coef = "reproduction_reproductive_vs_nonReproductive",
+#                   type = "apeglm")
+
+# Explore results
+#plotMA(res05, ylim = c(-7, 8))
+```
+
+The data including the male show clear difference between male and the other samples. 
+So I will remove this outlier sample and only use worker/gyne/queen.
+
+### Aim 2: Run DESeq2 on female samples
+
+I first check potential sample outliers looking at normalised read counts (with a heatmap, a sample-to-sample dendogram, a PCA).
+
+```{r aim 2 basic DEA without male, eval = TRUE, echo = FALSE, include = TRUE}
+
+# remove the male from input data, and rows with all counts zero
+cts3 <- cts2[, colnames(cts2) != "male1"]
+cts3 <- cts3[(rowSums(cts3) != 0), ]
+pheno_df1 <- pheno_df[row.names(pheno_df) != "male1", ]
+        
+        
+# make a DESeq dataset
+# measure the effect of reproduction
+dds1 <- DESeqDataSetFromMatrix(countData = cts3,
+                              colData   = pheno_df1,
+                              design    = ~ reproduction)
+
+# I could filter low count genes (not so sure how to decide this)
+
+# run the analysis
+dds1 <- DESeq(dds1)
+
+# lists the coefficients: here reproductive vs non-reproductives
+# resultsNames(dds1) 
+
+# data to explore
+my_data <- dds1
+
+# Read counts after data transformation
+# obtain data for the first 20 genes
+select <- order(rowMeans(counts(my_data,
+                                normalized = TRUE)),
+                decreasing = TRUE)[1:20]
+
+# make a dataframe for reproduction
+df <- as.data.frame(colData(my_data)[, c("reproduction")])
+
+# name the column and rows
+colnames(df) <- "castes"
+
+
+# create a DESeqTransform object 
+# this gives log2(n + 1), the most basic transformation
+ntd <- normTransform(my_data)
+
+rownames(df) <- colnames(assay(ntd)[select, ])
+
+# plot a heat map
+pheatmap(assay(ntd)[select, ],
+         cluster_rows    = FALSE,
+         show_rownames   = FALSE,
+         cluster_cols    = FALSE,
+         annotation_col  = df,
+         legend_labels   = "Caste",
+         main            = "Counts of 20 top genes after log2 + 1")
+
+
+
+# explore sample-tp-sample distances
+sampleDists <- dist(t(assay(ntd)))
+
+sampleDistMatrix <- as.matrix(sampleDists)
+
+rownames(sampleDistMatrix) <- ntd$caste
+
+colnames(sampleDistMatrix) <- NULL
+
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists,
+         col = colors,
+         main = "Sample-to-sample distances")
+
+
+# the samples cluster queen and worker, vs gynes!
+# this is probably because the gynes are young, and the workers and queen are old
+# (we have no age data associated with this dataset)
+
+## set the PCs 
+x_axis <- 1
+y_axis <- 2
+
+# run the plot
+plotPCA.DESeqTransform.moreAxes(ntd,
+                        intgroup = c("caste"),
+                        x_axis = x_axis,
+                        y_axis = y_axis)
+
+## set the PCs 
+x_axis <- 2
+y_axis <- 3
+
+# run the plot
+plotPCA.DESeqTransform.moreAxes(ntd,
+                        intgroup = c("caste"),
+                        x_axis = x_axis,
+                        y_axis = y_axis)
+
+# extract a results table with log2 fold changes, p values (nonadj and adj)
+res1 <- results(dds1,
+               name = "reproduction_reproductive_vs_nonReproductive")
+
+# p-values exploration
+resOrdered1 <- res1[order(res1$pvalue), ]
+# summary(res1)
+
+# change results for 0.05 cut-off
+res1_05 <- results(dds1, alpha = 0.05)
+
+# explore results when 0.05 is the cut-off
+# summary(res1_05)
+
+# 42 NAs in raw p-values
+# summary(res1_05$pvalue)
+# hist(res1_05$pvalue)
+
+# 1726  NAs in adjusted p-values (due to independent filtering)
+# summary(res1_05$padj)
+# hist(res1_05$padj)
+
+# how many genes are significantly differentially expressed: 511
+#sum(res1_05$padj < 0.05, na.rm = TRUE)
+
+# Explore results
+#plotMA(res1_05, ylim = c(-7, 8))
+
+```
+
+The queen groups with the workers, while the gynes are clearly separated. This might be due to an age difference: queens and workers are older than "fat lazy teenagers"-like gynes (the words of hornet expert John Lock).
+Using PC2 and PC3 however, there is a visible separation between reproductives (gynes + queen) and non-reproductives (workers).
+
+There are 511 genes that are significantly differentially expressed between reproductives and non-reproductives.
+
+
+Because queen sample is unique and rather different than the rest of the data, I re-run the analysis without the queen, and looking for genes that are differentially expressed between workers and gynes.
+
+### Aim 3: Run DESeq2 on female samples without the queen
+
+I first check sample outliers looking at normalised read counts (with a heatmap, a sample-to-sample dendogram, a PCA) and a barplot of DEG value ranges.
+
+```{r aim 3 basic DEA workers vs gynes, eval = TRUE, echo = FALSE, include = TRUE}
+
+# remove the queen from input data, and rows with all counts zero
+cts4 <- cts3[, colnames(cts3) != "queen2"]
+cts4 <- cts4[(rowSums(cts4) != 0), ]
+pheno_df2 <- pheno_df1[row.names(pheno_df1) != "queen2", ]
+        
+        
+# make a DESeq dataset
+# measure the effect of reproduction
+dds2 <- DESeqDataSetFromMatrix(countData = cts4,
+                               colData   = pheno_df2,
+                               design    = ~ reproduction)
+
+# I could filter low count genes (not so sure how to decide this)
+
+# run the analysis
+dds2 <- DESeq(dds2)
+
+# lists the coefficients: here reproductive vs non-reproductives
+# resultsNames(dds2) 
+
+
+# data to explore
+my_data <- dds2
+
+# Read counts after data transformation
+# obtain data for the first 20 genes
+select <- order(rowMeans(counts(my_data,
+                                normalized = TRUE)),
+                decreasing = TRUE)[1:20]
+
+# make a dataframe for reproduction
+df <- as.data.frame(colData(my_data)[, c("reproduction")])
+
+# name the column and rows
+colnames(df) <- "castes"
+
+
+# create a DESeqTransform object 
+# this gives log2(n + 1), the most basic transformation
+ntd <- normTransform(my_data)
+
+rownames(df) <- colnames(assay(ntd)[select, ])
+
+# plot a heat map
+pheatmap(assay(ntd)[select, ],
+         cluster_rows    = FALSE,
+         show_rownames   = FALSE,
+         cluster_cols    = FALSE,
+         annotation_col  = df,
+         legend_labels   = "Caste",
+         main            = "Counts of 20 top genes after log2 + 1")
+
+
+
+# explore sample-tp-sample distances
+sampleDists <- dist(t(assay(ntd)))
+
+sampleDistMatrix <- as.matrix(sampleDists)
+
+rownames(sampleDistMatrix) <- ntd$caste
+
+colnames(sampleDistMatrix) <- NULL
+
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists,
+         col = colors,
+         main = "Sample-to-sample distances")
+
+
+# the samples cluster queen and worker, vs gynes!
+# this is probably because the gynes are young, and the workers and queen are old
+# (we have no age data associated with this dataset)
+
+## set the PCs 
+x_axis <- 1
+y_axis <- 2
+
+# run the plot
+plotPCA.DESeqTransform.moreAxes(ntd,
+                        intgroup = c("caste"),
+                        x_axis = x_axis,
+                        y_axis = y_axis)
+
+
+
+
+# extract a results table with log2 fold changes, p values (nonadj and adj)
+res2 <- results(dds2,
+               name = "reproduction_reproductive_vs_nonReproductive")
+
+# p-values exploration
+resOrdered2 <- res2[order(res2$pvalue), ]
+# summary(res2)
+
+# change results for 0.05 cut-off
+res2_05 <- results(dds2, alpha = 0.05)
+
+# explore results when 0.05 is the cut-off
+# summary(res2_05 )
+
+# 4 NAs in raw p-values
+# summary(res2_05$pvalue)
+# hist(res2_05$pvalue)
+
+# 2236  NAs in adjusted p-values (due to independent filtering)
+# summary(res2_05$padj)
+# hist(res2_05$padj)
+
+# how many genes are significantly differentially expressed: 1171
+#sum(res2_05$padj < 0.05, na.rm = TRUE)
+
+# Explore results
+plotMA(res2_05, ylim = c(-10, 8))
+
+```
+
+All quality control plots are as expected, except for the dendogram of samples clustering a gyne with workers.
+By comparing just gynes versus workers, 1171 genes are significantly differentially expressed (Bonferroni adjustment, Padj < 0.05).
+There are 187 downregulated and 188 upregulated genes with a log2 fold change higher than 2, for the reproductives compared to the non-reproductives.
+
+
+### Aim 4: Compare DEG and positive selection
+
+For this analysis, I compare workers versus gynes, excluding outlier queen and male samples.
+
+```{r aim 3 compare with positive selection, eval = TRUE, echo = FALSE, include = TRUE}
+# filter data for those genes with more than log fold change of 2
+refined_results <- subset(res2_05,
+                          (abs(log2FoldChange) > 2))
+
+# https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#pvaluesNA
+# remove the genes that have a adjust p-value of NA
+# NA is from DESEQ2, assigned either because zero counts for all samples, or one sample being outlier
+refined_noNA_results <- refined_results[!is.na(refined_results$padj), ]
+
+#nrow(refined_noNA_results) # 140
+
+# investigate these na-pvalues (are they related to the sole queen or sole male?)
+refined_isNA_results <- refined_results[is.na(refined_results$padj), ]
+
+# check if all samples have zero counts
+for(gene in row.names(refined_isNA_results)){
+  
+  if(mean(cts[grep(gene, x = row.names(cts)), 2:11]) > 0){
+    print("one sample outlier")
+  } else {
+      print("all read counts are zero")
+    }
+
+}
+
+# looks like all samples have one outlier
+# list genes for which the sole queen has read count (VCQ)
+genes_with_sole_outlier <- cts[row.names(refined_isNA_results), ]
+
+genes_with_queen_count_only <- row.names(genes_with_sole_outlier)[colnames(genes_with_sole_outlier) == "VCQ2_1Aligned.sortedByCoord.out.bam"]
+
+# looking in there. all counts are very low for these genes
+cts[row.names(cts) %in% genes_with_queen_count_only,]
+
+# I would not worry about those genes - they are all low read counts
+
+
+
+# split the DEG list into up and downregulated gene lists (in reproductives) 
+# so we can see in what way these genes are present in the DEG list
+# 76 downregulated
+# e.g. Vcabro1a004104
+downregulated_gene_results <- refined_noNA_results[refined_noNA_results$log2FoldChange < 0, ]
+
+# 64 upregulated
+# e.f. Vcabro1a014716
+upregulated_gene_results <- refined_noNA_results[refined_noNA_results$log2FoldChange > 0, ]
+
+# save these tables 
+write.table(x = downregulated_gene_results,
+            file = "../../result/analysing-crabro-rna/downregulated_gene_results",
+            sep = "\t",
+            quote = FALSE)
+
+write.table(x = upregulated_gene_results,
+            file = "../../result/analysing-crabro-rna/upregulated_gene_results",
+            sep = "\t",
+            quote = FALSE)
+
+# checking if any positive selection genes are in the downregulated or upregulated genes
+
+# none in the downregulated gene list
+#sum(rownames(downregulated_gene_results) %in% Orthogroups_under_positive_selection_df$V.crabro.evm.consensus.annotation.v1a.prot.fasta.largestIsoform)
+
+# none in the upregulated gene list
+#sum(rownames(upregulated_gene_results) %in% Orthogroups_under_positive_selection_df$V.crabro.evm.consensus.annotation.v1a.prot.fasta.largestIsoform)
+
+# check in the unrefined result
+# genes that are under positive selection
+# and whose base mean is higher than the refined list
+
+# all of 6 positive selection genes are 
+#sum(rownames(res2_05[res2_05$baseMean > min(refined_results$baseMean) , ]) %in% Orthogroups_under_positive_selection_df$V.crabro.evm.consensus.annotation.v1a.prot.fasta.largestIsoform)
+```
+
+Out of 187 downregulated genes and 188 upregulated genes, none have experienced positive selection (ie with a dN/dS , compared to 9 Hymenoptera species, analysis performed by Jadesada Schneider.
+
+```{r record versions of session, eval = TRUE, echo = FALSE, include = FALSE}
+# record versions of R and packages here
+sessionInfo()
+# R version 3.6.3 (2020-02-29)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS Catalina 10.15.7
+# 
+# Matrix products: default
+# BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+# LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+# 
+# locale:
+# [1] en_GB.UTF-8/en_GB.UTF-8/en_GB.UTF-8/C/en_GB.UTF-8/en_GB.UTF-8
+# 
+# attached base packages:
+# [1] parallel  stats4    stats     graphics  grDevices utils     datasets  methods   base     
+# 
+# other attached packages:
+#  [1] apeglm_1.8.0                DESeq2_1.26.0               SummarizedExperiment_1.16.1
+#  [4] DelayedArray_0.12.3         BiocParallel_1.20.1         matrixStats_0.56.0         
+#  [7] Biobase_2.46.0              GenomicRanges_1.38.0        GenomeInfoDb_1.22.1        
+# [10] IRanges_2.20.2              S4Vectors_0.24.4            BiocGenerics_0.32.0        
+# [13] forcats_0.5.0               stringr_1.4.0               dplyr_1.0.2                
+# [16] purrr_0.3.4                 readr_1.3.1                 tidyr_1.1.1                
+# [19] tibble_3.0.4                tidyverse_1.3.0             ggplot2_3.3.2              
+# 
+# loaded via a namespace (and not attached): 
+#   [1] colorspace_2.0-0       ellipsis_0.3.1         htmlTable_2.0.1        XVector_0.26.0        
+#  [5] base64enc_0.1-3        fs_1.5.0               rstudioapi_0.12        bit64_4.0.2           
+#  [9] mvtnorm_1.1-1          AnnotationDbi_1.48.0   fansi_0.4.1            lubridate_1.7.9       
+# [13] xml2_1.3.2             splines_3.6.3          geneplotter_1.64.0     knitr_1.29            
+# [17] Formula_1.2-3          jsonlite_1.7.1         broom_0.7.0            annotate_1.64.0       
+# [21] cluster_2.1.0          dbplyr_1.4.4           png_0.1-7              BiocManager_1.30.10   
+# [25] compiler_3.6.3         httr_1.4.2             backports_1.2.0        assertthat_0.2.1      
+# [29] Matrix_1.2-18          cli_2.1.0              acepack_1.4.1          htmltools_0.5.0       
+# [33] tools_3.6.3            coda_0.19-4            gtable_0.3.0           glue_1.4.2            
+# [37] GenomeInfoDbData_1.2.2 Rcpp_1.0.5             bbmle_1.0.23.1         cellranger_1.1.0      
+# [41] vctrs_0.3.4            xfun_0.16              rvest_0.3.6            lifecycle_0.2.0       
+# [45] XML_3.99-0.3           MASS_7.3-51.6          zlibbioc_1.32.0        scales_1.1.1          
+# [49] hms_0.5.3              RColorBrewer_1.1-2     yaml_2.2.1             memoise_1.1.0         
+# [53] gridExtra_2.3          emdbook_1.3.12         bdsmatrix_1.3-4        rpart_4.1-15          
+# [57] latticeExtra_0.6-29    stringi_1.5.3          RSQLite_2.2.0          genefilter_1.68.0     
+# [61] checkmate_2.0.0        rlang_0.4.8            pkgconfig_2.0.3        bitops_1.0-6          
+# [65] evaluate_0.14          lattice_0.20-41        htmlwidgets_1.5.1      bit_4.0.4             
+# [69] tidyselect_1.1.0       plyr_1.8.6             magrittr_1.5           R6_2.5.0              
+# [73] generics_0.1.0         Hmisc_4.4-0            DBI_1.1.0              pillar_1.4.6          
+# [77] haven_2.3.1            foreign_0.8-75         withr_2.3.0            survival_3.2-3        
+# [81] RCurl_1.98-1.2         nnet_7.3-14            modelr_0.1.8           crayon_1.3.4          
+# [85] rmarkdown_2.3          jpeg_0.1-8.1           locfit_1.5-9.4         grid_3.6.3            
+# [89] readxl_1.3.1           data.table_1.13.2      blob_1.2.1             reprex_0.3.0          
+# [93] digest_0.6.27          xtable_1.8-4           numDeriv_2016.8-1.1    munsell_0.5.0 
+```
+
+### Notes:
+- Based on a script from Ben Taylor (BT)
+- BT: "the way DESeq2 handles effects in the formula depends on if they're numeric or factors (like a regular LM). If a factor, DESeq2 will take the first factor level as a reference level and will compare the expression each other factor level against the reference separately. If a numeric, then DESeq2 looks for genes whose expression correlates significantly with the value of the numeric. Note that this means that you need to be careful with mixing numeric variables with fold changes- for example, in the data I've given you, the formula '~ovaries' won't return any DEGs if combined with a LFC threshold, because it will assume you're looking for a given fold change for each integer change in ovarian size (which obviously won't be the case since ovarian values range in the hundreds). So, if you want to check for fold changes of a numeric variable, you'll want to normalize that variable either by scaling it or by setting the upper limit of the range as 1 and the lower limit as 0"
+- BT: "I used to use a threshold of 20 reads in at least one cohort of samples for the cleaning of the gene count data, but I've since updated the threshold to be equal to 1 count/sample for each cohort"
+
+
+DESeq2 tutorial: https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#standard-workflow

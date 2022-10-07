@@ -1,0 +1,1142 @@
+---
+title: "dNdS analysis"
+author: "Emeline Favreau"
+date: "2021/11/18"
+output: html_document
+---
+
+Copyright 2021 Emeline Favreau, University College London.
+
+---
+# Objective of analysis
+
+Explore six Vespine species's datasets for evidence of positive selection
+
+<!-- Branch models: When evaluating which gene experienced positive selection in relation to its orthogenes in different species, it is important to include the following values: -->
+<!--     - w_M0: dn/ds of this orthogroup in the null model (all branches equal) -->
+<!--     - np_M0: number of parameters in the null model  -->
+<!--     - lnL_M0: log-likelihood that the null model fits the data -->
+<!--     - np_M2: number of parameters in the alternative model -->
+<!--     - lnL_M2 log-likelihood that the alternative model fits the data -->
+<!--     - background_w: background dn/ds in the alternative model -->
+<!--     - foreground_w: foreground dn/ds in the alternative model -->
+<!--     - kappaM2: transition/transversion rate ratio -->
+<!--      - TestStatistic: D value, twice the difference in log-likelihoods is computed -->
+<!--      - DF: degrees of freedom for chi test -->
+<!--      - chiTest: the p value from the chi test, associated with significance of log-likelihood test. P-values under 0.05 show significant best fit of the data by alternative model. -->
+<!--  Thus, orthogenes with a foreground_w above 1 and with a p-value lower than 0.05 should be treated as having experienced positive/relaxed selection. -->
+
+<!-- Branch site models: When evaluating which gene experienced positive selection in relation to its orthogenes in different species, it is important to include the following values: -->
+<!--     - np_M0: number of parameters in the null model (omega fixed at 1)  -->
+<!--     - lnL_M0: log-likelihood that the null model fits the data -->
+<!--     - np_M2: number of parameters in the alternative model -->
+<!--     - lnL_M2 log-likelihood that the alternative model fits the data -->
+<!--      - TestStatistic: D value, twice the difference in log-likelihoods is computed -->
+<!--      - DF: degrees of freedom for chi test -->
+<!--      - chiTest: the p value from the chi test, associated with significance of log-likelihood test. P-values under 0.05 show significant best fit of the data by alternative model. -->
+<!--  Thus, orthogenes with a foreground_w above 1 and with a p-value lower than 0.05 should be treated as having experienced positive/relaxed selection. -->
+ 
+
+## Analysis steps:
+- Obtaining data
+- Aim 1: Explore dnds on branch models
+- Aim 2: Explore dnds on branch-site models
+- Aim 3: description
+- Aim 4: description
+
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse",
+                     "readxl",
+                     "RColorBrewer")
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+
+```
+
+
+```{r import data, eval = TRUE, echo = FALSE, include = FALSE}
+# branch model dnds result table, text format
+# made from codeml using single orthologous data
+# "orthogroup"   "w_M0"         "np_M0"        "lnL_M0"       "np_M2"        "lnL_M2"      
+# "background_w" "foreground_w" "kappa_M2"     "D"            "DF"           "chiTest"   
+crabro_branch_raw <- read.delim("../input/dnds-branch-model-tables/V_crabro/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+
+germanica_branch_raw <- read.delim("../input/dnds-branch-model-tables/V_germanica/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+mandarinia_branch_raw <- read.delim("../input/dnds-branch-model-tables/V_mandarinia/codeml-result-table", 
+                                 header=TRUE,
+                                 stringsAsFactors = FALSE)
+
+pensylvanica_branch_raw <- read.delim("../input/dnds-branch-model-tables/V_pensylvanica/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+velutina_branch_raw <- read.delim("../input/dnds-branch-model-tables/V_velutina/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+vulgaris_branch_raw <- read.delim("../input/dnds-branch-model-tables/V_vulgaris/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+vespa_branch_raw <- read.delim("../input/dnds-branch-model-tables/Vespa/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+vespula_branch_raw <- read.delim("../input/dnds-branch-model-tables/Vespula/codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+
+
+### branch-site data dnds result table, text format
+
+# made from codeml using single orthologous data
+# "orthogroup"	"np_M0"	"lnL_M0"	"np_M1"	"lnL_M2"	"chiTestpvalue" 
+crabro_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/V_crabro/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+
+germanica_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/V_germanica/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+mandarinia_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/V_mandarinia/BS-codeml-result-table", 
+                                 header=TRUE,
+                                 stringsAsFactors = FALSE)
+
+pensylvanica_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/V_pensylvanica/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+velutina_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/V_velutina/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+vulgaris_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/V_vulgaris/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+vespa_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/Vespa/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+vespula_branchsite_raw <- read.delim("../input/dnds-branch-site-model-tables/Vespula/BS-codeml-result-table", 
+                                header= TRUE,
+                                stringsAsFactors = FALSE)
+
+
+# import table from esearch
+# V_crabro-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+crabro_ortho_prot_def <- read.delim("../result/V_crabro-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(crabro_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+# V_germanica-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+germanica_ortho_prot_def <- read.delim("../result/V_germanica-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(germanica_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+# V_mandarinia-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+mandarinia_ortho_prot_def <- read.delim("../result/V_mandarinia-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(mandarinia_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+# V_pensylvanica-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+pensylvanica_ortho_prot_def <- read.delim("../result/V_pensylvanica-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(pensylvanica_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+# V_velutina-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+velutina_ortho_prot_def <- read.delim("../result/V_velutina-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(velutina_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+# V_vulgaris-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+vulgaris_ortho_prot_def <- read.delim("../result/V_vulgaris-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(vulgaris_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+# Vespa-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+vespa_ortho_prot_def <- read.delim("../result/Vespa-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(vespa_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+
+# Vespula-orthogroup-protein-definition
+# "orthogroup"	"apis_prot"	"apis_prot_def" 
+vespula_ortho_prot_def <- read.delim("../result/Vespula-orthogroup-protein-definition", 
+                                header= FALSE,
+                                stringsAsFactors = FALSE)
+
+colnames(vespula_ortho_prot_def) <- c("orthogroup",	"apis_prot",	"apis_prot_def" )
+
+
+```
+
+### Aim 1: Explore dnds on branch models
+
+```{r branch model calculate p value, eval = TRUE, echo = FALSE, include = FALSE}
+# crabro needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+crabro_branch_raw$D <- 2*(crabro_branch_raw$lnL_M2 - crabro_branch_raw$lnL_M0)
+crabro_branch_raw$DF <- crabro_branch_raw$np_M2 - crabro_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+crabro_branch_raw$chiTest <- pchisq(crabro_branch_raw$D,
+                                       df=crabro_branch_raw$DF, lower.tail=FALSE)
+
+# germanica needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+germanica_branch_raw$D <- 2*(germanica_branch_raw$lnL_M2 - germanica_branch_raw$lnL_M0)
+germanica_branch_raw$DF <- germanica_branch_raw$np_M2 - germanica_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+germanica_branch_raw$chiTest <- pchisq(germanica_branch_raw$D,
+                                       df=germanica_branch_raw$DF, lower.tail=FALSE)
+
+# mandarinia needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+mandarinia_branch_raw$D <- 2*(mandarinia_branch_raw$lnL_M2 - mandarinia_branch_raw$lnL_M0)
+mandarinia_branch_raw$DF <- mandarinia_branch_raw$np_M2 - mandarinia_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+mandarinia_branch_raw$chiTest <- pchisq(mandarinia_branch_raw$D,
+                                       df=mandarinia_branch_raw$DF, lower.tail=FALSE)
+
+
+
+# pensylvanica needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+pensylvanica_branch_raw$D <- 2*(pensylvanica_branch_raw$lnL_M2 - pensylvanica_branch_raw$lnL_M0)
+pensylvanica_branch_raw$DF <- pensylvanica_branch_raw$np_M2 - pensylvanica_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+pensylvanica_branch_raw$chiTest <- pchisq(pensylvanica_branch_raw$D,
+                                       df=pensylvanica_branch_raw$DF, lower.tail=FALSE)
+
+# velutina needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+velutina_branch_raw$D <- 2*(velutina_branch_raw$lnL_M2 - velutina_branch_raw$lnL_M0)
+velutina_branch_raw$DF <- velutina_branch_raw$np_M2 - velutina_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+velutina_branch_raw$chiTest <- pchisq(velutina_branch_raw$D,
+                                       df=velutina_branch_raw$DF, lower.tail=FALSE)
+
+# vulgaris needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+vulgaris_branch_raw$D <- 2*(vulgaris_branch_raw$lnL_M2 - vulgaris_branch_raw$lnL_M0)
+vulgaris_branch_raw$DF <- vulgaris_branch_raw$np_M2 - vulgaris_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+vulgaris_branch_raw$chiTest <- pchisq(vulgaris_branch_raw$D,
+                                       df=vulgaris_branch_raw$DF, lower.tail=FALSE)
+# vespa needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+vespa_branch_raw$D <- 2*(vespa_branch_raw$lnL_M2 - vespa_branch_raw$lnL_M0)
+vespa_branch_raw$DF <- vespa_branch_raw$np_M2 - vespa_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+vespa_branch_raw$chiTest <- pchisq(vespa_branch_raw$D,
+                                       df=vespa_branch_raw$DF, lower.tail=FALSE)
+
+# vespula needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/vespulaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+vespula_branch_raw$D <- 2*(vespula_branch_raw$lnL_M2 - vespula_branch_raw$lnL_M0)
+vespula_branch_raw$DF <- vespula_branch_raw$np_M2 - vespula_branch_raw$np_M0
+# https://stats.stackexchange.com/questions/250819/r-calculate-p-value-given-chi-squared-and-degrees-of-freedom
+vespula_branch_raw$chiTest <- pchisq(vespula_branch_raw$D,
+                                       df=vespula_branch_raw$DF, lower.tail=FALSE)
+
+
+# check class
+# str(crabro_branch_raw)
+# str(germanica_branch_raw)
+# str(mandarinia_branch_raw)
+# str(pensylvanica_branch_raw)
+# str(velutina_branch_raw)
+# str(vulgaris_branch_raw)
+# str(vespa_branch_raw)
+# str(vespula_branch_raw)
+
+```
+
+
+
+```{r branch model sig dnds genes, eval = TRUE, echo = FALSE, include = TRUE}
+# check range
+# summary(crabro_branch_raw$chiTest)
+# summary(germanica_branch_raw$chiTest)
+# summary(mandarinia_branch_raw$chiTest)
+# summary(pensylvanica_branch_raw$chiTest)
+# summary(velutina_branch_raw$chiTest)
+# summary(vulgaris_branch_raw$chiTest)
+# summary(vespa_branch_raw$chiTest)
+# summary(vespula_branch_raw$chiTest)
+
+
+# adujust p value (in chiTest branch) for multiple comparison (BH)
+crabro_branch_raw$padj <- p.adjust(p = crabro_branch_raw$chiTest,
+                                  method = "BH")
+
+germanica_branch_raw$padj <- p.adjust(p = germanica_branch_raw$chiTest,
+                                  method = "BH")
+mandarinia_branch_raw$padj <- p.adjust(p = mandarinia_branch_raw$chiTest,
+                                  method = "BH")
+pensylvanica_branch_raw$padj <- p.adjust(p = pensylvanica_branch_raw$chiTest,
+                                  method = "BH")
+velutina_branch_raw$padj <- p.adjust(p = velutina_branch_raw$chiTest,
+                                  method = "BH")
+vulgaris_branch_raw$padj <- p.adjust(p = vulgaris_branch_raw$chiTest,
+                                  method = "BH")
+vespa_branch_raw$padj <- p.adjust(p = vespa_branch_raw$chiTest,
+                                  method = "BH")
+vespula_branch_raw$padj <- p.adjust(p = vespula_branch_raw$chiTest,
+                                  method = "BH")
+
+
+# save tables for supplementary info
+write.table(crabro_branch_raw, file = "../result/crabro_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(germanica_branch_raw, file = "../result/germanica_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(mandarinia_branch_raw, file = "../result/mandarinia_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(pensylvanica_branch_raw, file = "../result/pensylvanica_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(velutina_branch_raw, file = "../result/velutina_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(vulgaris_branch_raw, file = "../result/vulgaris_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(vespa_branch_raw, file = "../result/vespa_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(vespula_branch_raw, file = "../result/vespula_branch_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+# check range
+# summary(crabro_branch_raw$foreground_w)
+# summary(germanica_branch_raw$foreground_w)
+# summary(mandarinia_branch_raw$foreground_w)
+# summary(pensylvanica_branch_raw$foreground_w)
+# summary(velutina_branch_raw$foreground_w)
+# summary(vulgaris_branch_raw$foreground_w)
+# summary(vespa_branch_raw$foreground_w)
+# summary(vespula_branch_raw$foreground_w)
+
+# make a table
+dnds_table <- tibble(species = c("crabro",
+                                    "germanica",
+                                    "mandarinia",
+                                    "pensylvanica",
+                                    "velutina",
+                                    "vulgaris",
+                                    "vespa_clade",
+                                    "vespula_clade"),
+                        pos_selection_gene_num = c(crabro_branch_raw %>%
+                                                  filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                  nrow(),
+                                                
+                                                  germanica_branch_raw %>%
+                                                  filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                  nrow(),
+
+
+                                                  mandarinia_branch_raw %>%
+                                                    filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                    nrow(),
+                                                  
+                                                  pensylvanica_branch_raw %>%
+                                                    filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                    nrow(),
+                                                  
+                                                  velutina_branch_raw %>%
+                                                    filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                    nrow(),
+                                                  
+                                                  vulgaris_branch_raw %>%
+                                                    filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                    nrow(),
+
+                                                   vespa_branch_raw %>%
+                                                     filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                     nrow(),
+                                                  
+                                                  vespula_branch_raw  %>%
+                                                     filter(foreground_w > 1 & padj  <= 0.05) %>%
+                                                     nrow()))
+
+dnds_table
+
+# number of loci under positive selection on the branch (BH method)
+# uncomment to check
+# crabro_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# germanica_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# mandarinia_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# pensylvanica_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# velutina_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# vulgaris_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# # vespa_branch_raw %>%
+# #   filter(foreground_w > 1 & padj  <= 0.05) %>%
+# #   select(orthogroup)
+# 
+# vespa_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+# vespula_branch_raw %>%
+#   filter(foreground_w > 1 & padj  <= 0.05) %>%
+#   nrow()
+# 
+
+# number of loci under positive selection on the branch (no adjustment)
+# uncomment to check
+# crabro_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# germanica_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# mandarinia_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# pensylvanica_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# velutina_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# vulgaris_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# vespa_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+# vespula_branch_raw %>%
+#   filter(foreground_w > 1 & chiTest  <= 0.05) %>%
+#   nrow()
+# 
+
+```
+
+**Summary of branch model analyses**
+
+There is no orthogroup under positive selection in the branch-model of any species. However when we look at clades (e.g. any branch leading to species from the root of Vespa, or from the root of Vespula), we find that the most social clade, Vespa, has ten orthogroups that have experienced positive selection (OG0002466, 			
+OG0002499, OG0002649, OG0003023, OG0003090, OG0003547, OG0003652, OG0004212, OG0004372, OG0004787).
+
+
+### Aim 2: Explore dnds on branchsite models
+
+```{r branchsite model calculate p value, eval = TRUE, echo = FALSE, include = FALSE}
+# crabro needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+crabro_branchsite_raw$D <- 2*(crabro_branchsite_raw$lnL_M2 - crabro_branchsite_raw$lnL_M0)
+crabro_branchsite_raw$DF <- crabro_branchsite_raw$np_M1 - crabro_branchsite_raw$np_M0
+crabro_branchsite_raw$chiTestpvalue <- pchisq(crabro_branchsite_raw$D,
+                                       df=crabro_branchsite_raw$DF, lower.tail=FALSE)
+
+# germanica needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+germanica_branchsite_raw$D <- 2*(germanica_branchsite_raw$lnL_M2 - germanica_branchsite_raw$lnL_M0)
+germanica_branchsite_raw$DF <- germanica_branchsite_raw$np_M1 - germanica_branchsite_raw$np_M0
+germanica_branchsite_raw$chiTestpvalue <- pchisq(germanica_branchsite_raw$D,
+                                       df=germanica_branchsite_raw$DF, lower.tail=FALSE)
+
+# mandarinia needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+mandarinia_branchsite_raw$D <- 2*(mandarinia_branchsite_raw$lnL_M2 - mandarinia_branchsite_raw$lnL_M0)
+mandarinia_branchsite_raw$DF <- mandarinia_branchsite_raw$np_M1 - mandarinia_branchsite_raw$np_M0
+mandarinia_branchsite_raw$chiTestpvalue <- pchisq(mandarinia_branchsite_raw$D,
+                                       df=mandarinia_branchsite_raw$DF, lower.tail=FALSE)
+
+
+
+# pensylvanica needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+pensylvanica_branchsite_raw$D <- 
+  2*(pensylvanica_branchsite_raw$lnL_M2 - pensylvanica_branchsite_raw$lnL_M0)
+pensylvanica_branchsite_raw$DF <- 
+  pensylvanica_branchsite_raw$np_M1 - pensylvanica_branchsite_raw$np_M0
+pensylvanica_branchsite_raw$chiTestpvalue <- pchisq(pensylvanica_branchsite_raw$D,
+                                       df=pensylvanica_branchsite_raw$DF, lower.tail=FALSE)
+
+# velutina needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+velutina_branchsite_raw$D <- 2*(velutina_branchsite_raw$lnL_M2 - velutina_branchsite_raw$lnL_M0)
+velutina_branchsite_raw$DF <- velutina_branchsite_raw$np_M1 - velutina_branchsite_raw$np_M0
+velutina_branchsite_raw$chiTestpvalue <- pchisq(velutina_branchsite_raw$D,
+                                       df=velutina_branchsite_raw$DF, lower.tail=FALSE)
+
+# vulgaris needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+vulgaris_branchsite_raw$D <- 2*(vulgaris_branchsite_raw$lnL_M2 - vulgaris_branchsite_raw$lnL_M0)
+vulgaris_branchsite_raw$DF <- vulgaris_branchsite_raw$np_M1 - vulgaris_branchsite_raw$np_M0
+vulgaris_branchsite_raw$chiTestpvalue <- pchisq(vulgaris_branchsite_raw$D,
+                                       df=vulgaris_branchsite_raw$DF, lower.tail=FALSE)
+# vespa needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/VespaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+vespa_branchsite_raw$D <- 2*(vespa_branchsite_raw$lnL_M2 - vespa_branchsite_raw$lnL_M0)
+vespa_branchsite_raw$DF <- vespa_branchsite_raw$np_M1 - vespa_branchsite_raw$np_M0
+vespa_branchsite_raw$chiTestpvalue <- pchisq(vespa_branchsite_raw$D,
+                                       df=vespa_branchsite_raw$DF, lower.tail=FALSE)
+
+# vespula needs to have stats calculated
+# D=`echo "2*($lnL_M2 - $lnL_M0)" | bc`
+# DF=`echo "$np_M2 - $np_M0" | bc`
+# chiTest=`/SAN/ugi/vespulaCrabro/tools/paml4.9j/bin/chi2 $DF $D | cut -d " " -f 8 -s`
+vespula_branchsite_raw$D <- 2*(vespula_branchsite_raw$lnL_M2 - vespula_branchsite_raw$lnL_M0)
+vespula_branchsite_raw$DF <- vespula_branchsite_raw$np_M1 - vespula_branchsite_raw$np_M0
+vespula_branchsite_raw$chiTestpvalue <- pchisq(vespula_branchsite_raw$D,
+                                       df=vespula_branchsite_raw$DF, lower.tail=FALSE)
+
+
+# check class
+# str(crabro_branchsite_raw)
+# str(germanica_branchsite_raw)
+# str(mandarinia_branchsite_raw)
+# str(pensylvanica_branchsite_raw)
+# str(velutina_branchsite_raw)
+# str(vulgaris_branchsite_raw)
+# str(vespa_branchsite_raw)
+# str(vespula_branchsite_raw)
+
+```
+
+
+
+```{r branchsite model sig dnds genes, eval = TRUE, echo = FALSE, include = TRUE}
+# check range
+# summary(crabro_branchsite_raw$chiTestpvalue)
+# summary(germanica_branchsite_raw$chiTestpvalue)
+# summary(mandarinia_branchsite_raw$chiTestpvalue)
+# summary(pensylvanica_branchsite_raw$chiTestpvalue)
+# summary(velutina_branchsite_raw$chiTestpvalue)
+# summary(vulgaris_branchsite_raw$chiTestpvalue)
+# summary(vespa_branchsite_raw$chiTestpvalue)
+# summary(vespula_branchsite_raw$chiTestpvalue)
+
+
+# adujust p value (in chiTestpvalue branchsite) for multiple comparison (BH)
+crabro_branchsite_raw$padj <- p.adjust(p = crabro_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+
+germanica_branchsite_raw$padj <- p.adjust(p = germanica_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+mandarinia_branchsite_raw$padj <- p.adjust(p = mandarinia_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+pensylvanica_branchsite_raw$padj <- p.adjust(p = pensylvanica_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+velutina_branchsite_raw$padj <- p.adjust(p = velutina_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+vulgaris_branchsite_raw$padj <- p.adjust(p = vulgaris_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+vespa_branchsite_raw$padj <- p.adjust(p = vespa_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+vespula_branchsite_raw$padj <- p.adjust(p = vespula_branchsite_raw$chiTestpvalue,
+                                  method = "BH")
+
+
+# save tables for supplementary info
+write.table(crabro_branchsite_raw, file = "../result/crabro_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(germanica_branchsite_raw, file = "../result/germanica_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(mandarinia_branchsite_raw, file = "../result/mandarinia_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(pensylvanica_branchsite_raw, file = "../result/pensylvanica_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(velutina_branchsite_raw, file = "../result/velutina_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(vulgaris_branchsite_raw, file = "../result/vulgaris_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(vespa_branchsite_raw, file = "../result/vespa_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+write.table(vespula_branchsite_raw, file = "../result/vespula_branchsite_dnds",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+# save orthogroups that are sig positive selection
+write.table(crabro_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/V_crabro-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(germanica_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/V_germanica-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(mandarinia_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/V_mandarinia-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(pensylvanica_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/V_pensylvanica-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(velutina_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/V_velutina-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(vulgaris_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/V_vulgaris-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(vespa_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/vespa-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+write.table(vespula_branchsite_raw %>% filter(padj  <= 0.05) %>%
+              select(orthogroup), 
+            file = "../result/vespula-positive-selection-orthogroups-list",
+            quote = FALSE, sep = "\t",
+            row.names = FALSE, col.names = FALSE)
+
+# number of loci under positive selection on the branchsite (BH method)
+
+# make a table
+dnds_BS_table <- tibble(genus = c("Vespa",
+                                    "Vespula",
+                                    "Vespa",
+                                    "Vespula",
+                                    "Vespa",
+                                    "Vespula",
+                                    "Vespa",
+                                    "Vespula"),
+                        species = c("crabro",
+                                    "germanica",
+                                    "mandarinia",
+                                    "pensylvanica",
+                                    "velutina",
+                                    "vulgaris",
+                                    "vespa_clade",
+                                    "vespula_clade"),
+                        pos_selection_gene_num = c(crabro_branchsite_raw %>%
+                                                  filter(padj  <= 0.05) %>%
+                                                  nrow(),
+                                                
+                                                  germanica_branchsite_raw %>%
+                                                  filter(padj  <= 0.05) %>%
+                                                  nrow(),
+
+
+                                                  mandarinia_branchsite_raw %>%
+                                                    filter(padj  <= 0.05) %>%
+                                                    nrow(),
+                                                  
+                                                  pensylvanica_branchsite_raw %>%
+                                                    filter(padj  <= 0.05) %>%
+                                                    nrow(),
+                                                  
+                                                  velutina_branchsite_raw %>%
+                                                    filter(padj  <= 0.05) %>%
+                                                    nrow(),
+                                                  
+                                                  vulgaris_branchsite_raw %>%
+                                                    filter(padj  <= 0.05) %>%
+                                                    nrow(),
+                                                
+                                                   vespa_branchsite_raw %>%
+                                                     filter(padj  <= 0.05) %>%
+                                                     nrow(),
+                                                   
+                                                   vespula_branchsite_raw  %>%
+                                                     filter(padj  <= 0.05) %>%
+                                                     nrow()))
+
+dnds_BS_table
+
+# set colours: vespa oranges, vespula blues
+vespa_colour_vec <- c("#ffffd4", "#fed98e", "#fe9929", "#cc4c02")
+vespula_colour_vec <- c("#a1dab4", "#41b6c4", "#2c7fb8", "#253494")
+
+# set a vector in same order as species
+this_graph_colours_vec <- c(vespa_colour_vec[1],
+                            vespula_colour_vec[1],
+                            vespa_colour_vec[1],
+                            vespula_colour_vec[1],
+                            vespa_colour_vec[1],
+                            vespa_colour_vec[1],
+                            vespula_colour_vec[1],
+                            vespula_colour_vec[1])
+# make a figure
+ggplot(dnds_BS_table, 
+       aes(x=species, y=pos_selection_gene_num, fill=species)) +  
+  geom_bar(stat = "identity" ) +
+  scale_fill_manual(values = this_graph_colours_vec) +
+  ylab("Genes under branch-site model positive selection") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# box plot 
+dnds_BS_table %>% 
+  ggplot(aes(x=genus, y=pos_selection_gene_num, fill=genus)) +
+    geom_boxplot() +
+    scale_fill_manual(values = this_graph_colours_vec) +
+    geom_jitter() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    )
+
+# # box plot 
+# dnds_BS_table %>% filter(species %in% c("crabro", "germanica", "mandarinia", "pensylvanica", "velutina", "vulgaris")) %>% 
+#   ggplot(aes(x=genus, y=pos_selection_gene_num, fill=genus)) +
+#     geom_boxplot() +
+#     scale_fill_manual(values = this_graph_colours_vec) +
+#     geom_jitter() +
+#     theme(
+#       legend.position="none",
+#       plot.title = element_text(size=11)
+#     )
+
+
+
+```
+
+**Summary of branchsite model analyses**
+
+There are many orthogroups under positive selection in the branch-site models. 
+The Vespa clade has more orthogroups under positive selection than the Vespula clade (153 and 138, respectively), when considering all species branches and inner branches leading to the root of the genus.
+_Vespa crabro_ is the species with the highest genes under positive selection on its own branch (104).
+Surprisingly, _Vespa mandarinia_ and _Vespa velutina_ have average number of genes under positive selection on their own branch (31 and 57, respectively). 
+Vespula species have similar number of genes under positive selection on their own branch (_V. pensylvanica_: 49; _V. germanica_: 62; _V. vulgaris_: 79).
+All in all, it seems that _Vespa crabro_ is the outlier out of these six species, with a higher amount of genes under positive selection.
+
+
+
+```{r sig dnds genes overlap, eval = TRUE, echo = FALSE, include = TRUE}
+
+# a heatmap with genes that are sig under positive selection in row
+# and species branch in column
+
+# vector of orthogroups
+orthogroup_vec <- crabro_branchsite_raw$orthogroup
+
+# vector of species
+species_vec <- c("crabro", "germanica", "mandarinia",
+                 "pensylvanica", "velutina", "vulgaris")
+
+# empty matrix filled with zeros
+all_species_matrix <- matrix(data = 0,
+       nrow = length(orthogroup_vec),
+       ncol = length(species_vec))
+
+# name rows
+row.names(all_species_matrix) <- orthogroup_vec
+
+# name columns
+colnames(all_species_matrix) <- species_vec
+
+# create a vector with orthogroups under positive selection, for each species
+ortho_crabro <- unlist(crabro_branchsite_raw %>% 
+                         filter(padj  <= 0.05) %>% select(orthogroup))
+ortho_germanica <- unlist(germanica_branchsite_raw %>% 
+                         filter(padj  <= 0.05) %>% select(orthogroup))
+ortho_mandarinia <- unlist(mandarinia_branchsite_raw %>% 
+                         filter(padj  <= 0.05) %>% select(orthogroup))
+ortho_pensylvanica <- unlist(pensylvanica_branchsite_raw %>% 
+                         filter(padj  <= 0.05) %>% select(orthogroup))
+ortho_velutina <- unlist(velutina_branchsite_raw %>% 
+                         filter(padj  <= 0.05) %>% select(orthogroup))
+ortho_vulgaris <- unlist(vulgaris_branchsite_raw %>% 
+                         filter(padj  <= 0.05) %>% select(orthogroup))
+
+# change 0 to 1 if the species has the orthogroup listed as sig positive selection
+for(i in 1:length(row.names(all_species_matrix))){
+  # crabro in col 1
+  if(row.names(all_species_matrix)[i] %in% ortho_crabro){
+    all_species_matrix[i,1] <- 1
+  }
+  # germanica in col 2
+  if(row.names(all_species_matrix)[i] %in% ortho_germanica){
+    all_species_matrix[i,2] <- 1
+  }
+  # mandarinia in col 3
+  if(row.names(all_species_matrix)[i] %in% ortho_mandarinia){
+    all_species_matrix[i,3] <- 1
+  }
+  # pensylvanica in col 4
+  if(row.names(all_species_matrix)[i] %in% ortho_pensylvanica){
+    all_species_matrix[i,4] <- 1
+  }
+  # velutina in col 5
+  if(row.names(all_species_matrix)[i] %in% ortho_velutina){
+    all_species_matrix[i,5] <- 1
+  }
+  # vulgaris in col 6
+  if(row.names(all_species_matrix)[i] %in% ortho_vulgaris){
+    all_species_matrix[i,6] <- 1
+  }
+}
+  
+# remove genes without any pos selection
+all_species_matrix <- all_species_matrix[rowSums(all_species_matrix == 0)!=6, ]
+
+# cluster rows (orthogroups)
+hc.rows <- hclust(dist(all_species_matrix))
+
+# transpose the matrix and cluster columns (species)
+hc.cols <- hclust(dist(t(all_species_matrix)))
+
+# create a colour gradient
+# light grey for no positive seleciton
+# pink for positive selection
+coul <- c("grey95","pink")
+
+# heatmap with both rows and columns as dendogram
+#png("DEGgenes-3718-heatmap.png")
+heatmap(all_species_matrix,
+        Colv   = as.dendrogram(hc.cols),
+        Rowv   = as.dendrogram(hc.rows),
+        scale  = 'none',
+        labRow = "",
+        cexCol = 0.5,
+        col    = coul,
+        main = "Orthogroups under positive selection are in pink")
+
+#dev.off()
+
+
+# figure caption
+# Orthogroups under positive selection do not cluster by taxonomy (e.g. Vespa vs Vespula).
+
+
+# exploring common orthogroups
+
+### Vespa
+# list of orthogroups that are common to all Vespa: OG0002464
+# as.data.frame(all_species_matrix) %>% 
+#   select(crabro, mandarinia, velutina) %>% 
+#   filter(crabro == 1 & mandarinia == 1 & velutina == 1) %>% row.names()
+# 
+
+# list of orthogroups that are common to carbro and mandarinia
+# OG0002464, OG0004537, OG0005045, OG0005416
+# as.data.frame(all_species_matrix) %>% 
+#   select(crabro, mandarinia, velutina) %>% 
+#   filter(crabro == 1 & mandarinia == 1) %>% row.names()
+
+# list of orthogroups that are common to carbro and velutina
+# "OG0002461" "OG0002464" "OG0002638" "OG0002967" "OG0003649" "OG0004241" "OG0005453"
+# as.data.frame(all_species_matrix) %>% 
+#   select(crabro, mandarinia, velutina) %>% 
+#   filter(crabro == 1 & velutina == 1) %>% row.names()
+
+# list of orthogroups that are common to mandarinia and velutina
+# "OG0002464" "OG0002788" "OG0002834" "OG0004848"
+# as.data.frame(all_species_matrix) %>% 
+#   select(crabro, mandarinia, velutina) %>% 
+#   filter(mandarinia == 1 & velutina == 1) %>% row.names()
+
+
+### Vespula
+# list of orthogroups that are common to all Vespula: None
+# as.data.frame(all_species_matrix) %>% 
+#   select(germanica, pensylvanica, vulgaris) %>% 
+#   filter(germanica == 1 & pensylvanica == 1 & vulgaris == 1) %>% row.names()
+
+
+# list of orthogroups that are common to germanica and pensylvanica
+# "OG0004116" "OG0004957" "OG0005153" "OG0005435" "OG0005460"
+# as.data.frame(all_species_matrix) %>% 
+#   select(germanica, pensylvanica, vulgaris) %>% 
+#   filter(germanica == 1 & pensylvanica == 1) %>% row.names()
+
+# list of orthogroups that are common to germanica and vulgaris
+# "OG0002466" "OG0003008" "OG0004214" "OG0004614"
+# as.data.frame(all_species_matrix) %>% 
+#   select(germanica, pensylvanica, vulgaris) %>% 
+#   filter(germanica == 1 & vulgaris == 1) %>% row.names()
+
+# list of orthogroups that are common to pensylvanica and vulgaris
+# "OG0003638" "OG0003673" "OG0003941" "OG0005261"
+# as.data.frame(all_species_matrix) %>% 
+#   select(germanica, pensylvanica, vulgaris) %>% 
+#   filter(pensylvanica == 1 & vulgaris == 1) %>% row.names()
+
+```
+
+In Vespa species, crabro and velutina have the most common orthogroups under positive selection (n=7).
+Other pairs of species within genus have less common orthogroups under positive selection.
+
+```{r sig dnds biological definition, eval = TRUE, echo = FALSE, include = TRUE}
+# each orthogroup is present in one or several copies in Apis
+# the Apis protein definition was assigned with esearch
+# add for each orthogroup table a column for definition (for supplementary figure)
+#str(crabro_ortho_prot_def)
+
+crabro_branchsite_raw$Apis_protein <- crabro_ortho_prot_def$apis_prot[match(crabro_branchsite_raw$orthogroup, crabro_ortho_prot_def$orthogroup)]
+
+crabro_branchsite_raw$Apis_protein_definition <- crabro_ortho_prot_def$apis_prot_def[match(crabro_branchsite_raw$Apis_protein, crabro_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+crabro_branchsite_ordered <- crabro_branchsite_raw[order(crabro_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(crabro_branchsite_ordered, file = "../result/crabro_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+##############################
+#str(germanica_ortho_prot_def)
+
+germanica_branchsite_raw$Apis_protein <- germanica_ortho_prot_def$apis_prot[match(germanica_branchsite_raw$orthogroup, germanica_ortho_prot_def$orthogroup)]
+
+germanica_branchsite_raw$Apis_protein_definition <- germanica_ortho_prot_def$apis_prot_def[match(germanica_branchsite_raw$Apis_protein, germanica_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+germanica_branchsite_ordered <- germanica_branchsite_raw[order(germanica_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(germanica_branchsite_ordered, file = "../result/germanica_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+
+
+
+
+
+
+#################################
+#str(mandarinia_ortho_prot_def)
+
+mandarinia_branchsite_raw$Apis_protein <- mandarinia_ortho_prot_def$apis_prot[match(mandarinia_branchsite_raw$orthogroup, mandarinia_ortho_prot_def$orthogroup)]
+
+mandarinia_branchsite_raw$Apis_protein_definition <- mandarinia_ortho_prot_def$apis_prot_def[match(mandarinia_branchsite_raw$Apis_protein, mandarinia_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+mandarinia_branchsite_ordered <- mandarinia_branchsite_raw[order(mandarinia_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(mandarinia_branchsite_ordered, file = "../result/mandarinia_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+#################################
+#str(pensylvanica_ortho_prot_def)
+
+pensylvanica_branchsite_raw$Apis_protein <- pensylvanica_ortho_prot_def$apis_prot[match(pensylvanica_branchsite_raw$orthogroup, pensylvanica_ortho_prot_def$orthogroup)]
+
+pensylvanica_branchsite_raw$Apis_protein_definition <- pensylvanica_ortho_prot_def$apis_prot_def[match(pensylvanica_branchsite_raw$Apis_protein, pensylvanica_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+pensylvanica_branchsite_ordered <- pensylvanica_branchsite_raw[order(pensylvanica_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(pensylvanica_branchsite_ordered, file = "../result/pensylvanica_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+
+############################
+#str(velutina_ortho_prot_def)
+
+velutina_branchsite_raw$Apis_protein <- velutina_ortho_prot_def$apis_prot[match(velutina_branchsite_raw$orthogroup, velutina_ortho_prot_def$orthogroup)]
+
+velutina_branchsite_raw$Apis_protein_definition <- velutina_ortho_prot_def$apis_prot_def[match(velutina_branchsite_raw$Apis_protein, velutina_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+velutina_branchsite_ordered <- velutina_branchsite_raw[order(velutina_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(velutina_branchsite_ordered, file = "../result/velutina_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+##########################
+#str(vulgaris_ortho_prot_def)
+
+vulgaris_branchsite_raw$Apis_protein <- vulgaris_ortho_prot_def$apis_prot[match(vulgaris_branchsite_raw$orthogroup, vulgaris_ortho_prot_def$orthogroup)]
+
+vulgaris_branchsite_raw$Apis_protein_definition <- vulgaris_ortho_prot_def$apis_prot_def[match(vulgaris_branchsite_raw$Apis_protein, vulgaris_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+vulgaris_branchsite_ordered <- vulgaris_branchsite_raw[order(vulgaris_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(vulgaris_branchsite_ordered, file = "../result/vulgaris_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+##########################
+#str(vespa_ortho_prot_def)
+
+vespa_branchsite_raw$Apis_protein <- vespa_ortho_prot_def$apis_prot[match(vespa_branchsite_raw$orthogroup, vespa_ortho_prot_def$orthogroup)]
+
+vespa_branchsite_raw$Apis_protein_definition <- vespa_ortho_prot_def$apis_prot_def[match(vespa_branchsite_raw$Apis_protein, vespa_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+vespa_branchsite_ordered <- vespa_branchsite_raw[order(vespa_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(vespa_branchsite_ordered, file = "../result/vespa_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+##########################
+#str(vespula_ortho_prot_def)
+
+vespula_branchsite_raw$Apis_protein <- vespula_ortho_prot_def$apis_prot[match(vespula_branchsite_raw$orthogroup, vespula_ortho_prot_def$orthogroup)]
+
+vespula_branchsite_raw$Apis_protein_definition <- vespula_ortho_prot_def$apis_prot_def[match(vespula_branchsite_raw$Apis_protein, vespula_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+vespula_branchsite_ordered <- vespula_branchsite_raw[order(vespula_branchsite_raw$padj, decreasing = FALSE), ]
+
+write.table(vespula_branchsite_ordered, file = "../result/vespula_branchsite_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+
+##########################
+# sig orthogroups
+vespa_sig_ortho_vec <- unlist(vespa_branchsite_raw %>% filter(padj < 0.05) %>% select(orthogroup))
+
+# combine all apis hit definitions into one table
+ortho_prot_def <- rbind(crabro_ortho_prot_def,
+      germanica_ortho_prot_def,
+      mandarinia_ortho_prot_def,
+      pensylvanica_ortho_prot_def,
+      velutina_ortho_prot_def,
+      vulgaris_ortho_prot_def)
+
+
+# Vespa clade in branch model had 10 sig orthogroups
+# list them here to put them in supplementary table
+#str(vespa_branch_raw)
+#str(vespa_ortho_prot_def)
+
+vespa_branch_raw$Apis_protein <- vespa_ortho_prot_def$apis_prot[match(vespa_branch_raw$orthogroup, vespa_ortho_prot_def$orthogroup)]
+
+vespa_branch_raw$Apis_protein_definition <- vespa_ortho_prot_def$apis_prot_def[match(vespa_branch_raw$Apis_protein, vespa_ortho_prot_def$apis_prot)]
+
+# sort the orthogroups by the lowest p value
+vespa_branch_ordered <- vespa_branch_raw[order(vespa_branch_raw$padj, decreasing = FALSE), ]
+
+write.table(vespa_branch_ordered, file = "../result/vespa_branch_ordered",
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+
+
+
+
+# reminder
+# some orthogroup might not have any hit on Apis mellifera because it is absent in honey bee
+```
+Next steps:
+
+- assign a biological definition to each gene (blast against honey bee)
+- explore enrichment of GO terms 

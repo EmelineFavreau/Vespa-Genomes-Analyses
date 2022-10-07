@@ -1,0 +1,395 @@
+## Objectif: quality analysis of orthogroups (sequence similarity, GO term enrichment)
+
+## Analysis steps:
+# Aim 1: running Orthofinder with six species and Drosophila
+# Aim 2: blast against Dmel to obtain biological definitions
+# Aim 3: blast species protein against Drosophila for TopGo
+# Aim 4: Run GO Term enrichment for each species (dNdS genes as focus loci)
+
+####################################################################################
+# Aim 1: running Orthofinder with six species and Drosophila
+####################################################################################
+
+# Orthofinder for Drosophila and the six species
+# Previously we ran all hymenoptera here: /SAN/ugi/VespaCrabro/input/primary_transcripts/OrthoFinder/Results_Aug12_1
+
+# Need to run similar, without the ants and Polistes, but with Drosophila melanogaster
+# to obtain enriched GO terms
+
+# obtain longest isoform of Drosophila 
+cd VespaCrabro/input/primary_transcripts_with_Dmel
+
+wget http://ftp.ensembl.org/pub/current_fasta/drosophila_melanogaster/pep/Drosophila_melanogaster.BDGP6.32.pep.all.fa.gz
+
+gunzip Drosophila_melanogaster.BDGP6.32.pep.all.fa.gz
+
+mv Drosophila_melanogaster.BDGP6.32.pep.all.fa Drosophila_melanogaster.faa
+
+# add all six species
+cp ../vespids_primary_transcripts/V_crabro-longest-isoforms.faa .
+cp ../primary_transcripts/V_germanica-longest-isoforms.faa .
+cp ../vespids_primary_transcripts/V_mandarinia-longest-isoforms.faa .
+cp ../vespids_primary_transcripts/V_pensylvanica-longest-isoforms.faa .
+cp ../vespids_primary_transcripts/V_velutina-longest-isoforms.faa .
+cp ../primary_transcripts/V_vulgaris-longest-isoforms.faa .
+
+# run script 4245998
+qsub VespaCrabro/scripts/orthogroups-analysis/run-orthofinder-with-Dmel.sh
+
+# hard copy results
+ln -s ~/VespaCrabro/input/primary_transcripts_with_Dmel/OrthoFinder/Results_Nov16 VespaCrabro/result/orthogroups-analysis/.
+
+
+
+####################################################################################
+# Aim 2: blast against Dmel to obtain biological definitions
+####################################################################################
+
+
+There are some orthogroups that are under positive selection. 
+What are their biological definition?
+
+### Set the connection
+# in one terminal on local machine
+ssh -L 2222:pchuckle.cs.ucl.ac.uk:22 efavreau@tails.cs.ucl.ac.uk
+
+# change species as needed
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris Vespa Vespula
+species="V_crabro"
+scp -P 2222 /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_genomes/result/${species}-positive-selection-orthogroups-list efavreau@localhost:~/VespaCrabro/result/calculating-dnds/branch-site-model/Vespula/.
+
+
+# OrthoFinder has the sequences of those orthogroups
+# change species as needed
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris
+species="Vespula"
+
+# from OrthoFinder run:
+# orthogroup | Dmel protein | species protein
+# VespaCrabro/result/orthogroups-analysis/Results_Nov16/Orthologues/Orthologues_Drosophila_melanogaster/Drosophila_melanogaster__v__${species}-longest-isoforms.tsv
+
+# subset this table for just the orthogroups needed
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	grep -f VespaCrabro/result/calculating-dnds/branch-site-model/${species}/${species}-positive-selection-orthogroups-list VespaCrabro/result/orthogroups-analysis/Results_Nov16/Orthologues/Orthologues_Drosophila_melanogaster/Drosophila_melanogaster__v__${species}-longest-isoforms.tsv > VespaCrabro/tmp/orthogroup-dmel_protein-${species}_protein
+done
+
+# for vespa and vespula clade, do the following
+cat VespaCrabro/result/orthogroups-analysis/Results_Nov16/Orthologues/Orthologues_Drosophila_melanogaster/Drosophila_melanogaster__v__*-longest-isoforms.tsv > VespaCrabro/tmp/D_melanogaster-longest-isoforms__v__all-longest-isoforms.tsv
+
+for species in Vespa Vespula; do
+	grep -f VespaCrabro/result/calculating-dnds/branch-site-model/${species}/${species}-positive-selection-orthogroups-list VespaCrabro/tmp/D_melanogaster-longest-isoforms__v__all-longest-isoforms.tsv > VespaCrabro/tmp/orthogroup-dmel_protein-${species}_protein
+done
+
+# combine all, remove third column (species protein name), 
+# sort and obtain unique list of orthogroups needed
+cat VespaCrabro/tmp/orthogroup-dmel_protein-*_protein | cut -f 1,2 | sort | uniq > VespaCrabro/tmp/orthogroup-dmel_protein-all_species_protein
+
+# tidy in R
+Rscript VespaCrabro/scripts/calculating-dnds/tidy-apis-orthogroups-protein-names.R
+
+# ultimately, we want one line per dmel protein name
+# orthogroup | dmel protein name
+VespaCrabro/result/calculating-dnds/dmel_protein_orthogroup
+
+
+# create a dmel-protein-list where there are no orthogroups linked to it
+cut -f 1 VespaCrabro/result/calculating-dnds/dmel_protein_orthogroup | tail -n +2 > VespaCrabro/tmp/dmel-protein-list
+
+
+# run in a screen
+tmux new-session
+
+# obtain for each protein the title (biological definition)
+for protein in $(cat VespaCrabro/tmp/dmel-protein-list); do
+    title=`esearch -db protein -query "$protein" | esummary | grep "Title"`
+    echo  ${protein} ${title} >> VespaCrabro/tmp/dmel-protein-titles
+done
+
+# check the file here
+wc -l VespaCrabro/tmp/dmel-protein-titles
+head VespaCrabro/tmp/dmel-protein-titles
+tail VespaCrabro/tmp/dmel-protein-titles
+
+
+
+# make a table: orthogroup | protein | definition
+while read protein; do
+	definition=`grep $protein VespaCrabro/tmp/dmel-protein-titles | cut -d ">" -f 2 | sed "s/<.*//g"`
+	orthogroup=`grep $protein VespaCrabro/result/calculating-dnds/dmel_protein_orthogroup | cut -f 2`
+	echo -e "$orthogroup\t$protein\t$definition" >> VespaCrabro/result/calculating-dnds/orthogroup-protein-dmel-definition
+done < VespaCrabro/tmp/dmel-protein-list
+
+
+# split result per species
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	cut -f 1 VespaCrabro/tmp/orthogroup-dmel_protein-${species}_protein | grep -f - VespaCrabro/result/calculating-dnds/orthogroup-protein-dmel-definition > VespaCrabro/result/calculating-dnds/${species}-orthogroup-protein-dmel-definition
+done
+
+# save results for supplementary tables
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris
+species="V_vulgaris"
+scp -P 2222 efavreau@localhost:~/VespaCrabro/result/calculating-dnds/${species}-orthogroup-protein-dmel-definition /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_genomes/result/.
+
+# those definitions help describing the orthogroups that are under positive selection for each species
+
+
+
+####################################################################################
+# Aim 3: blast species protein against Drosophila for TopGo
+####################################################################################
+
+
+
+# set project structure
+mkdir -p ~/VespaCrabro/tmp/ortho-enrichment/input
+mkdir -p ~/VespaCrabro/tmp/ortho-enrichment/result
+mkdir -p ~/VespaCrabro/tmp/ortho-enrichment/tmp
+
+# find input files: protein files of all species including Drosophila
+cd VespaCrabro/input/proteins
+
+# Drosophila melanogaster to fit biomart ensembl match
+wget http://ftp.ensembl.org/pub/current_fasta/drosophila_melanogaster/pep/Drosophila_melanogaster.BDGP6.32.pep.all.fa.gz
+
+gunzip Drosophila_melanogaster.BDGP6.32.pep.all.fa.gz
+
+mv Drosophila_melanogaster.BDGP6.32.pep.all.fa D_melanogaster.faa
+
+cd ~
+
+# Vcabro1a000001P1
+VespaCrabro/input/proteins/V_crabro-short-name.faa
+
+# KAF7378524.1
+VespaCrabro/input/proteins/V_germanica-short-name.faa
+
+# XP_035717107.1
+VespaCrabro/input/proteins/V_mandarinia-short-name.faa
+
+# KAF7378532.1
+VespaCrabro/input/proteins/V_pensylvanica-short-name.faa
+
+# Vvelutina1a000001P1
+VespaCrabro/input/proteins/V_velutina-short-name.faa
+
+# KAF7378526.1
+VespaCrabro/input/proteins/V_vulgaris-short-name.faa
+
+
+
+
+# orthofinder results
+# columns: orthogroups, and names of species
+VespaCrabro/result/orthogroups-analysis/Results_Aug12_1/Orthogroups/Orthogroups.tsv .
+
+# significant orthogroups for each codeml test
+# first column
+VespaCrabro/tmp/orthogroup-apis_protein-${species}_protein
+
+
+# Make database from fly (not sure this is actually useful)
+cd VespaCrabro
+/share/apps/genomics/blast-2.10.0+/bin/makeblastdb -in input/proteins/D_melanogaster.faa \
+        -parse_seqids \
+        -dbtype prot
+
+
+# create log directories
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris
+species="V_crabro"
+
+mkdir ~/logs/blastp${species}
+
+# Blast species against fly
+# 5hours, 10G, 8 threads
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	qsub VespaCrabro/scripts/orthogroups-analysis/blastp-${species}_against_fly.sh
+done
+
+# check result
+/SAN/ugi/VespaCrabro/tmp/ortho-enrichment/result/${species}
+
+# this gives multiple hits per query (bee/wasp)
+# keep the hit that has the lowest p value
+
+for species in $(cat VespaCrabro/vespid_list);do
+        cut -f 1 VespaCrabro/tmp/ortho-enrichment/result/${species} | sort | uniq > VespaCrabro/tmp/${species}_seq-list
+        touch VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered
+        for sequence in $(cat VespaCrabro/tmp/${species}_seq-list); do
+                grep ${sequence} VespaCrabro/tmp/ortho-enrichment/result/${species} | awk 'NR == 1 || $11 < min {line = $0; min = $11}END{print line}' >> VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered
+        done
+done
+
+# check that the resulting file has one hit per sequence
+for species in $(cat VespaCrabro/vespid_list);do
+        cut -f 1 VespaCrabro/tmp/ortho-enrichment/result/${species} | sort | uniq | wc -l
+        wc -l VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered
+done
+
+
+# Table of corresponding species and droso gene names
+VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered
+
+# check that blast result match protein names (do we need a hash table? Don't think so)
+head VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered
+head VespaCrabro/tmp/orthogroup-apis_protein-${species}_protein
+
+
+
+####################################################################################
+Aim 4: Run GO Term enrichment for each species (dNdS genes as focus loci)
+####################################################################################
+
+# filter hash tables for just the 2685 orthogroups
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+grep -f VespaCrabro/tmp/aligned-orthogroups-2021-09-09 VespaCrabro/result/orthogroups-analysis/Results_Nov16/Orthologues/Orthologues_Drosophila_melanogaster/Drosophila_melanogaster__v__${species}-longest-isoforms.tsv | cut -f 1,3 - | sed "s/,.*//g" > VespaCrabro/tmp/2685-orthogroup-dmel-${species}
+done
+
+
+# input needed for TopGO
+- [x] species gene | fly gene | blast output format 6. needs to be done before GO Terms search. 
+VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered
+
+- [x] orthogroup | crabro gene table. twig this: VespaCrabro/result/orthogroups-analysis/Results_Nov16/Orthologues/Orthologues_Drosophila_melanogaster/Drosophila_melanogaster__v__${species}-longest-isoforms.tsv THIS NEEDS TO BE FILTERED FOR THE LIST VespaCrabro/tmp/aligned-orthogroups-2021-09-09
+
+- [x] orthogroup | crabro gene table (only for the 2685 orthogroups)
+
+- [x] list of sig orthogroups for this species. first column of VespaCrabro/tmp/orthogroup-dmel_protein-${species}_protein
+
+
+
+# copy them from cs to computer input/orthogroup-analysis/.
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/orthogroup-dmel_protein-${species}_protein Google\ Drive/Sumner_projects/species/vespa_genomes/input/orthogroup-analysis/.
+done
+
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	scp -P 2222 efavreau@localhost:~/VespaCrabro/result/orthogroups-analysis/Results_Nov16/Orthologues/Orthologues_Drosophila_melanogaster/Drosophila_melanogaster__v__${species}-longest-isoforms.tsv Google\ Drive/Sumner_projects/species/vespa_genomes/input/orthogroup-analysis/.
+done
+
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris Vespa Vespula; do
+	scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/ortho-enrichment/result/${species}_filtered Google\ Drive/Sumner_projects/species/vespa_genomes/input/orthogroup-analysis/.
+done
+
+
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/2685-orthogroup-dmel-${species} Google\ Drive/Sumner_projects/species/vespa_genomes/input/orthogroup-analysis/.
+done
+
+# run top go and analyse result (p-value adjustment, etc)
+scripts/orthogroups-analysis/2021-11-15-topgo.Rmd
+
+# compile species' result for supplementary tables
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	cat result/orthogroups-analysis/sorted_topgo_result_${species}_* > result/orthogroups-analysis/sorted_topgo_result_${species}
+done
+
+# copy the following tables to supplementary
+for species in V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris; do
+	scp -P 2222 /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_genomes/result/orthogroups-analysis/sorted_topgo_result_${species} efavreau@localhost:~/VespaCrabro/result/orthogroups-analysis/.
+done 
+
+result/orthogroups-analysis/sorted_topgo_result_V_germanica
+result/orthogroups-analysis/sorted_topgo_result_V_mandarinia
+result/orthogroups-analysis/sorted_topgo_result_V_pensylvanica
+result/orthogroups-analysis/sorted_topgo_result_V_velutina
+result/orthogroups-analysis/sorted_topgo_result_V_vulgaris
+
+
+
+
+############################
+# ANALYSES THAT WENT NOWHERE
+############################
+# blast against Apis to obtain biological definitions
+
+There are some orthogroups that are under positive selection. 
+What are their biological definition?
+
+### Set the connection
+# in one terminal on local machine
+ssh -L 2222:pchuckle.cs.ucl.ac.uk:22 efavreau@tails.cs.ucl.ac.uk
+
+# change species as needed
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris Vespa Vespula
+species="V_crabro"
+scp -P 2222 /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_genomes/result/${species}-positive-selection-orthogroups-list efavreau@localhost:~/VespaCrabro/result/calculating-dnds/branch-site-model/Vespula/.
+
+
+# OrthoFinder has the sequences of those orthogroups
+
+
+# change species as needed
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris
+species="Vespula"
+
+# from OrthoFinder run:
+# orthogroup | Apis protein | species protein
+# VespaCrabro/result/orthogroups-analysis/Results_Aug12_1/Orthologues/Orthologues_A_mellifera-longest-isoforms/A_mellifera-longest-isoforms__v__${species}-longest-isoforms.tsv
+
+# subset this table for just the orthogroups needed
+grep -f VespaCrabro/result/calculating-dnds/branch-site-model/${species}/${species}-positive-selection-orthogroups-list VespaCrabro/result/orthogroups-analysis/Results_Aug12_1/Orthologues/Orthologues_A_mellifera-longest-isoforms/A_mellifera-longest-isoforms__v__${species}-longest-isoforms.tsv > VespaCrabro/tmp/orthogroup-apis_protein-${species}_protein
+
+# for vespa and vespula clade, do the following
+cat VespaCrabro/result/orthogroups-analysis/Results_Aug12_1/Orthologues/Orthologues_A_mellifera-longest-isoforms/A_mellifera-longest-isoforms__v__*-longest-isoforms.tsv > VespaCrabro/tmp/A_mellifera-longest-isoforms__v__all-longest-isoforms.tsv
+
+grep -f VespaCrabro/result/calculating-dnds/branch-site-model/${species}/${species}-positive-selection-orthogroups-list VespaCrabro/tmp/A_mellifera-longest-isoforms__v__all-longest-isoforms.tsv > VespaCrabro/tmp/orthogroup-apis_protein-${species}_protein
+
+# combine all, remove third column (species protein name), 
+# sort and obtain unique list of orthogroups needed
+cat VespaCrabro/tmp/orthogroup-apis_protein-*_protein | cut -f 1,2 | sort | uniq > VespaCrabro/tmp/orthogroup-apis_protein-all_species_protein
+
+# tidy in R
+Rscript VespaCrabro/scripts/calculating-dnds/tidy-apis-orthogroups-protein-names.R
+
+# ultimately, we want one line per Apis protein name
+# orthogroup | Apis protein name
+VespaCrabro/result/calculating-dnds/Apis_protein_orthogroup
+
+
+# create a Apis-protein-list where there are no orthogroups linked to it
+cut -d " " -f 1 VespaCrabro/result/calculating-dnds/Apis_protein_orthogroup | tail -n +2 > VespaCrabro/tmp/Apis-protein-list
+
+
+# run in a screen
+tmux new-session
+
+# obtain for each protein the title (biological definition)
+for protein in $(cat VespaCrabro/tmp/Apis-protein-list); do
+    title=`esearch -db protein -query "$protein" | esummary | grep "Title"`
+    echo  ${protein} ${title} >> VespaCrabro/tmp/Apis-protein-titles
+done
+
+# copy of result file without the clade data: VespaCrabro/tmp/Apis-protein-titles-without-clade
+# if needed
+
+# check the file
+wc -l VespaCrabro/tmp/Apis-protein-titles
+head VespaCrabro/tmp/Apis-protein-titles
+tail VespaCrabro/tmp/Apis-protein-titles
+
+
+# make a table: orthogroup | protein | definition
+while read protein; do
+	definition=`grep $protein VespaCrabro/tmp/Apis-protein-titles | cut -d ">" -f 2 | sed "s/<.*//g"`
+	orthogroup=`grep $protein VespaCrabro/result/calculating-dnds/Apis_protein_orthogroup | cut -d " " -f 2`
+	echo -e "$orthogroup\t$protein\t$definition" >> VespaCrabro/result/calculating-dnds/orthogroup-protein-definition
+done < VespaCrabro/tmp/Apis-protein-list
+
+# copy just in case: VespaCrabro/result/calculating-dnds/orthogroup-protein-definition-without-clade
+
+
+
+# split result per species
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris Vespa Vespula
+species="Vespula"
+cut -f 1 VespaCrabro/tmp/orthogroup-apis_protein-${species}_protein | grep -f - VespaCrabro/result/calculating-dnds/orthogroup-protein-definition > VespaCrabro/result/calculating-dnds/${species}-orthogroup-protein-definition
+
+# save results for supplementary tables
+# V_crabro V_germanica V_mandarinia V_pensylvanica V_velutina V_vulgaris
+species="Vespula"
+scp -P 2222 efavreau@localhost:~/VespaCrabro/result/calculating-dnds/${species}-orthogroup-protein-definition /Users/emelinefavreau/Google\ Drive/Sumner_projects/species/vespa_genomes/result/.
+
+# those definitions help describing the orthogroups that are under positive selection for each species
+
+

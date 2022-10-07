@@ -1,0 +1,47 @@
+# WHATIDID for overlap between DEGs, dNdS and duplication events
+# input nedeed
+	- VespaCrabro/result/analysing-crabro-rna/up_and_downregulated_genes (Vcabro1a015173)
+	- VespaCrabro/result/calculating-dnds/V_crabro-positive-selection-orthogroups-list (currently OG0002454, need the equivalent in Vcabro1a015173)
+	- VespaCrabro/tmp/V_crabro-unique-protein-names-to-blast (Vcabro1a000017P1)
+
+# wrangling data from orthogroups to crabro protein names [dnds]
+# list of OG in positive selection for crabro
+VespaCrabro/result/calculating-dnds/V_crabro-positive-selection-orthogroups-list
+
+# association file between protein and orthogroups
+# from OrthoFinder run:
+# orthogroup | Apis protein | species protein
+# VespaCrabro/result/orthogroups-analysis/Results_Aug12_1/Orthologues/Orthologues_A_mellifera-longest-isoforms/A_mellifera-longest-isoforms__v__V_crabro-longest-isoforms.tsv
+
+# create a file with the protein names (Vcabro1a012909P1)
+touch VespaCrabro/tmp/V_crabro-dnds-protein-names-to-blast
+
+# obtain proteins associated with this orthogroups
+for orthogroup in $(cat VespaCrabro/result/calculating-dnds/V_crabro-positive-selection-orthogroups-list); do
+        grep ${orthogroup} VespaCrabro/result/orthogroups-analysis/Results_Aug12_1/Orthologues/Orthologues_A_mellifera-longest-isoforms/A_mellifera-longest-isoforms__v__V_crabro-longest-isoforms.tsv | cut -f 3 | sort | uniq >> VespaCrabro/tmp/V_crabro-dnds-protein-names-to-blast
+done
+
+# one protein per line (Vcabro1a006688P1)
+sed "s/, /\n/g" VespaCrabro/tmp/V_crabro-dnds-protein-names-to-blast > VespaCrabro/tmp/V_crabro-dnds-protein-names
+
+# copy the three lists to computer to use in R script
+scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/V_crabro-dnds-protein-names Google\ Drive/Sumner_projects/species/vespa_genomes/input/comparative-analysis/.
+
+scp -P 2222 efavreau@localhost:~/VespaCrabro/result/analysing-crabro-rna/up_and_downregulated_genes Google\ Drive/Sumner_projects/species/vespa_genomes/input/comparative-analysis/.
+
+scp -P 2222 efavreau@localhost:~/VespaCrabro/tmp/V_crabro-unique-protein-names-to-blast Google\ Drive/Sumner_projects/species/vespa_genomes/input/comparative-analysis/.
+
+# analysis here
+scripts/comparative-analysis/comparing-degs-dnds-duplication.Rmd
+
+# when mapping V velutina and V mandarinia, we found an off-diagonal inversion in the output dot matrix. We extracted the coordinates from the output paf file. Here we extract the fasta sequence from V mandarinia, to query its content in a sequence similarity BLASTnr.
+
+# find V mandarinia genome 
+/SAN/ugi/VespaCrabro/input/genomes/V_mandarinia.fasta
+
+# extract region (details found in paf from dgenies against Vvel)
+# CHROM 	START	END
+NW_023395844.1	3701405	5336819
+bedtools getfasta -fi input/genomes/V_mandarinia.fasta -bed tmp/potential_inversion_Vman.bed -fo tmp/potential_inversion.fasta
+
+bedtools intersect -a tmp/potential_inversion_Vman.bed -b input/gff/V_mandarinia.gff.gz -wb | awk '$6 == "gene" {print $0}' | wc -l # 97 genes

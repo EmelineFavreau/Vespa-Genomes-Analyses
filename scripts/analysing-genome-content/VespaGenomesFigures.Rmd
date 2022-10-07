@@ -1,0 +1,168 @@
+---
+title: "figure plotting for Vespa genomes manuscript"
+author: "Emeline Favreau"
+date: "2021/11/26"
+output: html_document
+---
+
+Copyright 2021 Emeline Favreau, University College London.
+
+---
+# Objective of analysis
+
+# aim 1: genome stats of new and old species
+# aim 2: Busco scores
+# aim 3: phylogenetic tree
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("tidyverse",
+        "ggplot2",
+        "scales",
+        "readxl",
+        "phytools")
+
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+#BiocManager::install("treeio")
+# install.packages("deeptime")
+library("treeio")
+library("ggtree")
+```
+
+
+```{r import data, eval = TRUE, echo = FALSE, include = FALSE}
+# csv file with genomes stats on chosen species
+# accession assembly_level contig_n50 assembly_name Genus_species 
+# assembly_length submission_date year Family     
+Hymenoptera_curated <- read.csv("../../input/genome/Hymenoptera_genomes_stats_subset.csv",
+                                header=TRUE,
+                                stringsAsFactors = FALSE)
+
+
+# excel sheet with genome stats including busco
+# "Species Family Size (bb) Contigs N50              
+# L50 GC% # N’s per 100 kbp Total Complete Single-Copy   
+# Duplicated Fragmented Missing Accession Assembly level 
+# Assembly name Submission date Year    
+ST2_genome_stats <- readxl::read_excel("../../manuscript/tables/ST2-genome-stats.xlsx")
+
+# phylogenetic tree from OrthoFinder
+# tree file, newick format
+# OrthoFinder hybrid species-overlap/duplication-loss coalescent model.
+# made by OrthoFinder using single orthologous data
+ortho_tree <- phytools::read.newick(file = "../../input/orthogroup-analysis/SpeciesTree_rooted.txt")
+
+
+
+```
+
+```{r aim 1, eval = TRUE, echo = FALSE, include = TRUE}
+###############################################################################
+# aim 1: genome stats of new and old species
+# vector of colours
+green_seq_vec <- c('#ffffd9', '#edf8b1', '#c7e9b4', '#7fcdbb', '#41b6c4',
+                   '#1d91c0', '#225ea8', '#253494', '#081d58')
+
+
+# plot assembly status (assembly length and N50)
+ggplot(data = Hymenoptera_curated) + 
+  geom_point(aes(assembly_length, 
+                 contig_n50,
+                 colour = as.factor(year),
+                shape = as.factor(Family)), 
+             alpha = I(0.6),
+             size = 6) + 
+  scale_colour_manual(values = green_seq_vec) + 
+  theme_bw() + 
+  geom_text(data = Hymenoptera_curated,
+             aes(assembly_length,
+                 contig_n50,
+                 label = Genus_species),
+             colour = I(alpha("black", 0.85)), size = 5 ) +
+  scale_x_continuous(limits = c(-15350018, 496009169),
+                     labels = scales::label_comma(),
+                     breaks = c(0, 200000000, 400000000, 600000000)) +
+  scale_y_log10(
+                labels = scales::label_comma())
+
+# save
+ggsave(filename = "../../manuscript/figures/2021-07-02-Figure1-n50-length.pdf")
+```
+
+```{r aim 2, eval = TRUE, echo = FALSE, include = TRUE}
+# aim 2: Busco scores
+# set levels to phylogenetic order
+ST2_genome_stats$Species <- factor(x = ST2_genome_stats$Species,
+  levels = c("Acromyrmex echinatior", "Atta cephalotes", "Formica selysi" ,      
+             "Solenopsis invicta",
+             
+             "Apis mellifera" , "Megalopta genalis",
+             
+             "Polistes canadensis", "Polistes dominula", "Polistes dorsalis",
+             "Polistes fuscatus", "Polistes metricus",
+             
+             "Vespa crabro", "Vespa velutina", "Vespa mandarinia",
+             
+             "Vespula germanica", "Vespula pensylvanica", "Vespula vulgaris"
+
+              ))
+
+
+
+# transform ST2 to make a bar plot
+assembly_content_data <- ST2_genome_stats %>% 
+  dplyr::select(Species, `Single-Copy`, Duplicated, Fragmented,
+                            Missing) %>% 
+  gather(key = "BUSCO", value = "value",
+         -Species )
+
+# set levels to busco order
+assembly_content_data$BUSCO <- factor(x = assembly_content_data$BUSCO,
+                                   levels = c("Missing",
+                                              "Fragmented",
+                                              "Duplicated",
+                                              "Single-Copy"
+                                              ))
+                                   
+# set four diverging colours
+orange_to_purple_vec <- c("#fdb863", "#e66101", "#5e3c99", "#b2abd2")
+
+# plot assembly content (busco and GC%)
+ggplot(data = assembly_content_data,
+       aes(fill = BUSCO, 
+           y = value,
+           x = Species )) + 
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_manual(values = orange_to_purple_vec) + 
+  theme_bw() + coord_flip()
+
+# save
+ggsave(filename = "../../manuscript/figures/2021-07-30-Figure1-busco.pdf")
+```
+
+```{r aim 3, eval = TRUE, echo = FALSE, include = TRUE}
+# aim 3: phylogenetic tree
+
+# update tree tip
+ortho_tree$tip.label <- gsub(pattern = "-longest-isoforms",
+     x = ortho_tree$tip.label, replacement = "")
+
+# make a tree
+ortho_tree %>%
+  ggtree() +
+  geom_tiplab() +
+  theme_tree2() +
+  ggtitle("OrthoFinder Tree")
+
+ggsave(filename = "../../manuscript/figures/2021-11-26-species-tree.png")
+
+```

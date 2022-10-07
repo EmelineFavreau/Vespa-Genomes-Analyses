@@ -1,0 +1,134 @@
+---
+title: "Comparing dNdS, DEGs, duplicated orthorgoups in Vespa crabro"
+author: "Emeline Favreau"
+date: "2021-11-25"
+output: html_document
+---
+
+Copyright 2021 Emeline Favreau, University College London.
+
+_Vespa crabro_ has a genome with evidence of orthologous positive selection and duplication events. 
+We also have genes that are differentially expressed between gynes and workers.
+We explore these genes here (any overlap?).
+
+---
+# Objective of analysis
+
+## Analysis steps:
+- Aim 1: 
+
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse",
+                     "dplyr",
+                     "UpSetR",
+                     "ComplexUpset")
+
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+```
+
+
+```{r import data, eval = TRUE, echo = FALSE, include = TRUE}
+# 
+# Obtained from R DESEQ, these genes are significantly 
+# differentially expressed between gynes and workers
+up_and_downregulated_genes <- read.table("../../input/comparative-analysis/up_and_downregulated_genes",
+                                         quote = "\"", comment.char = "",
+                                         stringsAsFactors = FALSE)
+
+# obtained from paml codeml, these proteins have a dnds ratio > 1
+# while in other species (Vespa mandarinia, Vespa velutina, Vespula germanica, 
+# Vespula vulagris, Vespula pensylvanica), the orthologous version has not
+dnds_genes <- read.table("../../input/comparative-analysis/V_crabro-dnds-protein-names",
+                                         quote = "\"", comment.char = "",
+                                         stringsAsFactors = FALSE)
+
+# obtained from OrthoFinder, these proteins are associated with duplication events
+# only in Vespa crabro
+# while in other species (Vespa mandarinia, Vespa velutina, Vespula germanica, 
+# Vespula vulagris, Vespula pensylvanica), the orthologous version has not
+duplicated_genes <- read.table("../../input/comparative-analysis/V_crabro-unique-protein-names-to-blast",
+                                         quote = "\"", comment.char = "",
+                                         stringsAsFactors = FALSE)
+
+# add names to columns
+colnames(up_and_downregulated_genes) <- "deg"
+colnames(dnds_genes)                 <- "positive_selection_protein"
+colnames(duplicated_genes)           <- "duplicated_protein"
+
+
+```
+
+```{r compare, eval = TRUE, echo = FALSE, include = TRUE}
+# degs are genes, dnds and duplicated are proteins
+# the difference is the P1 or P2at the end
+# add a column with gene
+dnds_genes$positive_selection_gene <- gsub(x = dnds_genes$positive_selection_protein,
+                                           pattern = "P[0-9]",
+                                           replacement = "")
+
+duplicated_genes$duplicated_gene <- gsub(x = duplicated_genes$duplicated_protein,
+                                           pattern = "P[0-9]",
+                                           replacement = "")
+
+
+
+# what I want to do: a unique list of genes. see if there is some overlap with the table.
+# if there is, plot it (upset) and think about the biological meaning of it
+# if there is not, think about the biological meaning of it
+
+# list of unique genes
+gene_vec <- unique(c(dnds_genes$positive_selection_gene,
+         duplicated_genes$duplicated_gene,
+         up_and_downregulated_genes$deg))
+
+## make a table of genes (rows) and experiements (column)
+# fill with presence / absence (1/0)
+interesting_genes_df <- data.frame(genes = gene_vec,
+                             deg = rep(0, times = length(gene_vec)),
+                             dnds = rep(0, times = length(gene_vec)),
+                             duplicates = rep(0, times = length(gene_vec)),
+                             stringsAsFactors = FALSE)
+
+# write in 1 if present
+for(i in 1:length(gene_vec)){
+  if(gene_vec[i] %in% up_and_downregulated_genes$deg){
+    interesting_genes_df$deg[i] <- 1
+  }
+  
+  if(gene_vec[i] %in% dnds_genes$positive_selection_gene){
+    interesting_genes_df$dnds[i] <- 1
+  }
+  
+  if(gene_vec[i] %in% duplicated_genes$duplicated_gene){
+    interesting_genes_df$duplicates[i] <- 1
+  }
+  
+}
+
+# add a column of sums 
+# if sum = 6, all species had this goterm enriched
+num_experiments <- 3
+interesting_genes_df$experiments_count <- rowSums(interesting_genes_df[ , 2:4])
+  
+# check spread (answer: one overlap)
+#table(interesting_genes_df$experiments_count)
+# Vcabro1a000853
+# interesting_genes_df[interesting_genes_df$experiments_count == 2, ]
+
+
+```
+
+One gene is present in DEGs and duplicated events: Vcabro1a000853.
+The biological meaning is: heterogeneous nuclear ribonucleoprotein H [Apis mellifera]
+# found to be associated in honey bee caste determination with alternative splicing (www.pnas.org/cgi/doi/10.1073/pnas.1109343108) and epigenetic machinery (doi: 10.1111/imb.12726).
