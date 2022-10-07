@@ -1,0 +1,1 @@
+(((V_mandarinia-longest-isoforms:0.004055,V_crabro-longest-isoforms:0.01234,V_velutina-longest-isoforms:0.00968)1:0.00154,(V_vulgaris-longest-isoforms:0.00797,(V_pensylvanica-longest-isoforms:0.00813,V_germanica-longest-isoforms:0.00846)1:0.00304)1:0.06162)1:0.004055);
