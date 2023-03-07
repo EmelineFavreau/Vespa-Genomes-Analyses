@@ -1,0 +1,187 @@
+---
+title: "Vespa_TEs"
+output: html_document
+date: "2023-03-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+bashing around with colours:
+
+```{r}
+colours <- as.data.frame(matrix(c("DNA", "#E32017",
+                                  "RC", "#EE7C0E",
+                                  "PLE", "#7156A5",
+                                  "LINE", "#0098D4",
+                                  "SINE", "#9B0056",
+                                  "LTR", "#00782A",
+                                  "Other (Simple Repeat, RNA, etc)", "#F3A9BB",
+                                  "Unclassified", "#A0A5A9",
+                                  "Non-Repeat", "#000000"), ncol = 2, byrow = TRUE))
+
+colnames(colours) <- c("new_name", "colour")
+col <- colours$colour
+names(col) <- colours$new_name
+```
+
+
+## Crabro landscape
+
+```{r}
+
+crabro_size = 211313510
+
+crab <- read_table("crabro_R.txt")
+
+crab %>% 
+  pivot_longer(cols = -Div) %>% 
+  mutate(new_name = stringr::word(name,1,sep = "\\/")) %>%
+  mutate(new_name = stringr::str_replace(new_name, "[[:punct:]]", "")) %>% 
+  group_by(Div,new_name) %>% 
+  summarise(sum = sum(value)) %>% 
+  filter(new_name!="X21") %>% 
+  mutate(new_name = gsub(".*RNA.*|^Satellite.*|^Simple_repeat.*|^Low_complexity.*|^ARTEFACT.*|^repeat.*|^Other.*", "Other (Simple Repeat, RNA, etc)", new_name),
+         new_name = gsub("^Unknown.*|Retroposon.*|Unspecified.*","Unclassified", new_name)) %>% 
+  mutate(percent_genome = (sum / crabro_size)*100) %>% 
+  ggplot(., aes(x=Div, y=percent_genome, fill=new_name)) +
+  geom_bar(position="stack", stat="identity",color="black") +
+  theme_classic() +
+  scale_fill_manual(values = col) +
+  xlab("Kimura substitution level") +
+  ylab("Percent of the genome") + 
+  labs(fill = "") +
+  coord_cartesian(xlim = c(0, 55)) +
+  theme(axis.text=element_text(size=11),axis.title =element_text(size=12))
+
+```
+
+# Velutina landscape
+
+```{r}
+
+velutina_size = 193976845
+
+vel <- read_table("velutina_R.txt")
+
+vel %>% 
+  pivot_longer(cols = -Div) %>% 
+  mutate(new_name = stringr::word(name,1,sep = "\\/")) %>%
+  mutate(new_name = stringr::str_replace(new_name, "[[:punct:]]", "")) %>% 
+  group_by(Div,new_name) %>% 
+  summarise(sum = sum(value)) %>% 
+  filter(new_name!="X21") %>% 
+  mutate(new_name = gsub(".*RNA.*|^Satellite.*|^Simple_repeat.*|^Low_complexity.*|^ARTEFACT.*|^repeat.*|^Other.*", "Other (Simple Repeat, RNA, etc)", new_name),
+         new_name = gsub("^Unknown.*|Retroposon.*|Unspecified.*","Unclassified", new_name)) %>% 
+  mutate(percent_genome = (sum / velutina_size)*100) %>% 
+  ggplot(., aes(x=Div, y=percent_genome, fill=new_name)) +
+  geom_bar(position="stack", stat="identity",color="black") +
+  theme_classic() +
+  scale_fill_manual(values = col) +
+  xlab("Kimura substitution level") +
+  ylab("Percent of the genome") + 
+  labs(fill = "") +
+  coord_cartesian(xlim = c(0, 55)) +
+  theme(axis.text=element_text(size=11),axis.title =element_text(size=12)) +
+  xlim(0,55) +
+  ylim(0,1.5)
+
+
+```
+
+## composition stats
+
+for this take *.out files and parse because RepeatMasker is not parsing classification names properly at the mo! 
+
+do this for each genome
+
+```{r}
+
+colnames_out <- c("SW_score", "div", "del", "ins", "query", "start", "stop", "left", "strand", "repeat", "class_family", "begin", "end", "rep_left", "ID")
+
+crab_out <- data.table::fread("crabro.fa.out", fill=T)[-(1:2),-16]
+colnames(crab_out) <- colnames_out
+
+percent_crab <- crab_out %>% 
+  select(start, stop, class_family) %>% 
+  mutate(class = class_family) %>% 
+  mutate(class = gsub("^DNA.*", "DNA", class),
+         class = gsub("^RC.*", "Rolling Circle", class),
+         class = gsub("^DNA.*", "DNA", class),
+         class = gsub("^RC.*", "Rolling Circle", class),
+         class = gsub(".*Penelope|^PLE.*", "PLE", class),
+         class = gsub("^LINE.*", "LINE", class),
+         class = gsub("^SINE.*", "SINE", class),
+         class = gsub("^LTR.*", "LTR", class),
+         class = gsub("^Unknown.*|Retroposon.*|Unspecified.*","Unclassified", class),
+         class = gsub(".*RNA.*|^Satellite.*|^Simple_repeat.*|^Low_complexity.*|^ARTEFACT.*|^repeat.*|^Other.*", "Other (Simple Repeat, RNA, etc)", class)) %>% 
+  mutate(stop = as.numeric(stop),
+         start = as.numeric(start),
+         size = abs(stop-start)) %>% 
+  group_by(class) %>% 
+  summarise(crabro = (sum(size)/crabro_size)*100) %>% 
+  slice(-1)
+
+```
+
+
+```{r}
+
+vel_out <- data.table::fread("velutina.fa.out", fill=T)[-(1:2),-16]
+colnames(vel_out) <- colnames_out
+
+percent_vel <- vel_out %>% 
+  select(start, stop, class_family) %>% 
+  mutate(class = class_family) %>% 
+  mutate(class = gsub("^DNA.*", "DNA", class),
+         class = gsub("^RC.*", "Rolling Circle", class),
+         class = gsub("^DNA.*", "DNA", class),
+         class = gsub("^RC.*", "Rolling Circle", class),
+         class = gsub(".*Penelope|^PLE.*", "PLE", class),
+         class = gsub("^LINE.*", "LINE", class),
+         class = gsub("^SINE.*", "SINE", class),
+         class = gsub("^LTR.*", "LTR", class),
+         class = gsub("^Unknown.*|Retroposon.*|Unspecified.*","Unclassified", class),
+         class = gsub(".*RNA.*|^Satellite.*|^Simple_repeat.*|^Low_complexity.*|^ARTEFACT.*|^repeat.*|^Other.*", "Other (Simple Repeat, RNA, etc)", class)) %>% 
+  mutate(stop = as.numeric(stop),
+         start = as.numeric(start),
+         size = abs(stop-start)) %>% 
+  group_by(class) %>% 
+  summarise(velutina = (sum(size)/velutina_size)*100) %>% 
+  slice(-1)
+
+```
+
+
+## Comparison plot 
+
+```{r}
+composition_plot <- left_join(percent_crab, percent_vel) %>% 
+  mutate(velutina = replace_na(velutina, 0)) %>% 
+  pivot_longer(cols=-class) %>% 
+  ggplot(., aes(x=name, y=value, fill=class)) +
+  geom_bar(stat="identity") +
+  scale_fill_manual(values=col) +
+  theme_classic() +
+  ylab("percent of genome")
+
+composition_plot
+
+
+## make a csv file of composition
+left_join(percent_crab, percent_vel) %>% 
+  mutate(velutina = replace_na(velutina, 0)) %>% 
+  write_csv(., "percent.csv")
+
+```
+
+
+Session details
+```{r}
+sessionInfo()
+```
+
