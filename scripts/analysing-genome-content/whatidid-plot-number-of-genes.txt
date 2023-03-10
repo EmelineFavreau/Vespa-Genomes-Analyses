@@ -1,0 +1,145 @@
+# Categorising each gene of 10 species
+# result/orthogroups-analysis/Results_Aug12_1/Phylogenetic_Hierarchical_Orthogroups/N0.tsv 
+
+# OrthoFinder was based on longest isoforms
+   9922 A_mellifera_protein_longest_isoform.txt
+   9876 P_canadensis_protein_longest_isoform.txt
+  10179 P_dominula_protein_longest_isoform.txt
+  14790 S_invicta_protein_longest_isoform.txt
+  16689 V_crabro_protein_longest_isoform.txt
+  17187 V_germanica_protein_longest_isoform.txt
+  10107 V_mandarinia_protein_longest_isoform.txt
+  18491 V_pensylvanica_protein_longest_isoform.txt
+  13377 V_velutina_protein_longest_isoform.txt
+  15512 V_vulgaris_protein_longest_isoform.txt
+
+
+# STEP 1
+# obtain names of each gene present in gff
+input/gff/A_mellifera.gff.gz
+input/gff/P_canadensis.gff.gz
+input/gff/P_dominula.gff.gz
+input/gff/S_invicta.gff.gz
+input/gff/V_crabro.gff.gz
+input/gff/V_germanica.gff.gz
+input/gff/V_mandarinia.gff.gz
+input/gff/V_pensylvanica.gff.gz
+input/gff/V_velutina.gff.gz
+input/gff/V_vulgaris.gff.gz
+
+
+species="V_vulgaris"
+gff="V_vulgaris.gff.gz"
+zcat input/gff/${gff} | sed '/^#/d' | awk '$3 == "gene" { print $9 }' | sed "s/.*;Name=//g" | sed "s/;.*//g" > tmp/${species}-gene-list
+
+wc -l tmp/*-gene-list
+12332 tmp/A_mellifera-gene-list
+10666 tmp/P_canadensis-gene-list
+11241 tmp/P_dominula-gene-list
+16609 tmp/S_invicta-gene-list
+16409 tmp/V_crabro-gene-list
+17187 tmp/V_germanica-gene-list
+11981 tmp/V_mandarinia-gene-list
+18491 tmp/V_pensylvanica-gene-list
+12928 tmp/V_velutina-gene-list
+15512 tmp/V_vulgaris-gene-list
+
+
+sed -i "s/ID=//g" tmp/V_crabro-gene-list
+sed -i "s/ID=//g" tmp/V_velutina-gene-list
+
+# STEP 2: 
+# get gene names and their categories
+
+# list of Vespa orthologues (n=14)
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$8!=""' | awk -F '\t' '$9==""' | awk -F '\t' '$10!=""' | awk -F '\t' '$11==""' | awk -F '\t' '$12!=""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,8,10,12 | cut -f 1 | sort | uniq | wc -l
+
+# list of Vespula orthologues (n=1681)
+# because column 13 is weird end of line character, I use regex on gene name
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$8==""' | awk -F '\t' '$9!=""' | awk -F '\t' '$10==""' | awk -F '\t' '$11!=""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 ~ /KAF*/' | cut -f 2,9,11,13 | cut -f 1 | sort | uniq | wc -l
+
+# list of Polistes orthologues (n=23)
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5!=""' | awk -F '\t' '$6!=""' | awk -F '\t' '$7==""'| awk -F '\t' '$8==""' | awk -F '\t' '$9==""' | awk -F '\t' '$10==""' | awk -F '\t' '$11==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,5,6 | cut -f 1 | sort | uniq | wc -l
+
+############
+
+# species specific multiple copies Vespa crabro (n=69)
+# original column: $8
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$8!=""' | awk -F '\t' '$9==""' | awk -F '\t' '$10==""' | awk -F '\t' '$11==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,8 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+############
+
+
+# species specific multiple copies Vespa mandarinia (n=9)
+# original column: $10
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$10!=""' | awk -F '\t' '$9==""' | awk -F '\t' '$8==""' | awk -F '\t' '$11==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,10 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+############
+
+
+# species specific multiple copies Vespa velutina (n=51)
+# original column: $12
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$12!=""' | awk -F '\t' '$9==""' | awk -F '\t' '$8==""' | awk -F '\t' '$11==""' | awk -F '\t' '$10==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,12 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+############
+
+
+# species specific multiple copies Vespula germanica (n=18)
+# original column: $9
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$9!=""' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$11==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,9 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+############
+
+
+# species specific multiple copies Vespula pensylvanica (n=7)
+# original column: $11
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$11!=""' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$9==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,11 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+############
+
+
+# species specific multiple copies Vespula vulgaris (n=4)
+# original column: $13
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$11==""' | awk -F '\t' '$13 ~ /KAF*/' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$9==""' | awk -F '\t' '$12==""' |  cut -f 2,13 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+############
+
+
+# species specific multiple copies Apis mellifera (n=54)
+# original column: $4
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$5==""' | awk -F '\t' '$11==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$4!=""' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$9==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,4 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+############
+
+
+# species specific multiple copies Polistes canadensis (n=11)
+# original column: $5
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$11==""' | awk -F '\t' '$6==""' | awk -F '\t' '$7==""'| awk -F '\t' '$5!=""' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$9==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,5 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+
+############
+
+
+# species specific multiple copies Polistes dominula (n=21)
+# original column: $6
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$11==""' | awk -F '\t' '$5==""' | awk -F '\t' '$7==""'| awk -F '\t' '$6!=""' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$9==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,6 | grep "," | cut -f 1 | sort | uniq | wc -l
+
+
+############
+
+
+# species specific multiple copies Solenopsis invicta (n=355)
+# original column: $7
+tail -n+2  N0.tsv | sed "s/ //g" | awk -F '\t' '$4==""' | awk -F '\t' '$11==""' | awk -F '\t' '$5==""' | awk -F '\t' '$6==""'| awk -F '\t' '$7!=""' | awk -F '\t' '$8==""' | awk -F '\t' '$10==""' | awk -F '\t' '$9==""' | awk -F '\t' '$12==""' | awk -F '\t' '$13 !~ /KAF*/' | cut -f 2,7 | grep "," | cut -f 1 | sort | uniq | wc -l
+ 
+
+#### plot 
+Rscript 2023-03-gene-barplot.Rmd
+
+

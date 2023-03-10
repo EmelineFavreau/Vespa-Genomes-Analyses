@@ -1,0 +1,556 @@
+---
+title: "Vespa genomes: Gene numbers in categories"
+author: "Emeline"
+date: "2023-03-10"
+output: html_document
+---
+# Copyright 2023 Emeline Favreau, University College London.
+
+
+
+---
+# Objective of analysis
+Reviewer 2 suggested to include a plot with on the x axis the number of genes
+found in each genome, and on the y axis, the species. Each bar is coloured 
+with categories: single-copy, multiple-copies, Genus specific and species
+specific.
+
+## Analysis steps
+- Obtaining data
+- Aim 1: tidy data
+- Aim 2: count 1:1 orthologs
+- Aim 3: count N:N orthologs
+- Aim 4: count Vespa orthologs
+- Aim 5: count Vespula orthologs
+- Aim 6: count Polistes orthologs
+- Aim 7: count species-specific multiple-copy orthologs
+- Aim 8: count species-specific single-copy orthologs
+
+```{r import data, eval = TRUE, echo = FALSE, include = FALSE}
+# add all the files needed here, with descriptions
+
+# OrthoFinder list of orthogroups
+#  tab separated text file. 
+# Each row contains the genes belonging to a single orthogroup. 
+# The genes from each orthogroup are organized into columns, one per species.
+# Additional columns give the HOG (Hierarchical Orthogroup) ID and the node
+# in the gene tree from which the HOG was determined 
+# (note, this can be above the root of the clade containing the genes). 
+N0 <- read.delim("~/Google Drive/Sumner_projects/2020-vespa_genomes/input/orthogroups/N0.tsv",
+                 na.strings = "", stringsAsFactors = FALSE)
+
+# make presence absence table of a given orthogroup
+# colnames(N0)
+# [1] "HOG"                             
+# [2] "OG"                             
+# [3] "Gene.Tree.Parent.Clade"          
+# [4] "A_mellifera.longest.isoforms"   
+# [5] "P_canadensis.longest.isoforms"   
+# [6] "P_dominula.longest.isoforms"    
+# [7] "S_invicta.longest.isoforms"      
+# [8] "V_crabro.longest.isoforms"      
+# [9] "V_germanica.longest.isoforms"    
+# [10] "V_mandarinia.longest.isoforms"  
+# [11] "V_pensylvanica.longest.isoforms" 
+# [12] "V_velutina.longest.isoforms"    
+# [13] "V_vulgaris.longest.isoforms" 
+
+
+```
+
+```{r load all the libraries, eval = TRUE, echo = FALSE, include = FALSE}
+# get libraries
+basic_libraries <- c("ggplot2",
+                     "tidyverse")
+
+for (lib in basic_libraries) {
+        if (require(package = lib, character.only = TRUE)) {
+                print("Successful")
+        } else {
+                print("Installing")
+                install.packages(lib)
+                library(lib, character.only = TRUE )
+        }
+}
+```
+
+
+
+## Aim 1: tidy data
+
+```{r aim 1, eval = TRUE, echo = FALSE, include = TRUE}
+
+# there are 17061 HOGs 
+species_vec <- c("Apis_mellifera",
+                 "Polistes_canadensis",
+                 "Polistes_dominula",
+                 "Solenopsis_invicta",
+                 "Vespa_crabro",
+                 "Vespula_germanica",
+                 "Vespa_mandarinia",
+                 "Vespula_pensylvanica",
+                 "Vespa_velutina",
+                 "Vespula_vulgaris")
+
+# change the column names
+colnames(N0) <- c(colnames(N0)[1:3],
+                  species_vec)
+
+
+# if NA, change for 0 (ie OrthoFinder did not find an match for this species)
+# if a list of proteins, change for the number of proteins 
+
+# we loop through each row of the data.frame
+for (j in 1:nrow(N0)){
+  # we focus on species columns (from 4 to 13)
+  for(i in 4:13){
+    N0[j, i] <- ifelse(is.na(N0[j, i]), 0, 
+          length(unlist(strsplit(x = N0[j, i], split = ","))))
+  }
+}
+
+# change protein number into numeric
+N0$Apis_mellifera       <- as.numeric(N0$Apis_mellifera)
+N0$Polistes_canadensis  <- as.numeric(N0$Polistes_canadensis)
+N0$Polistes_dominula    <- as.numeric(N0$Polistes_dominula)
+N0$Solenopsis_invicta   <- as.numeric(N0$Solenopsis_invicta)
+N0$Vespa_crabro         <- as.numeric(N0$Vespa_crabro)
+N0$Vespula_germanica    <- as.numeric(N0$Vespula_germanica)
+N0$Vespa_mandarinia     <- as.numeric(N0$Vespa_mandarinia)
+N0$Vespula_pensylvanica <- as.numeric(N0$Vespula_pensylvanica)
+N0$Vespa_velutina       <- as.numeric(N0$Vespa_velutina)
+N0$Vespula_vulgaris     <- as.numeric(N0$Vespula_vulgaris)
+
+# number of species
+species_number <- length(species_vec)
+
+# instantiate result data.frame
+gene_content_data <- data.frame(category = rep(c("8singleCopy",
+                                                 "7multipleCopies",
+                                                 "6Vespa",
+                                                 "5Vespula",
+                                                 "4Polistes",
+                                                 "2SpeciesSpecificMultipleCopies",
+                                                 "3SpeciesSpecificSingleCopy",
+                                                 "1Other"), 
+                                               times = species_number),
+                                value = 0,
+                                species = rep(species_vec, 
+                                              each = 8))
+
+```
+
+
+## Aim 2: Count 1:1 orthologs
+
+```{r aim 2, eval = TRUE, echo = FALSE, include = TRUE}
+# There are 163 1:1:1 
+gene_content_data$value[gene_content_data$category == "8singleCopy"] <- 
+  filter(N0, Apis_mellifera == 1 & 
+           Polistes_canadensis == 1 & 
+           Polistes_dominula == 1 & 
+           Solenopsis_invicta == 1 & 
+           Vespa_crabro == 1 & 
+           Vespula_germanica == 1 & 
+           Vespa_mandarinia == 1 & 
+           Vespula_pensylvanica == 1 & 
+           Vespa_velutina == 1 & 
+           Vespula_vulgaris == 1) %>% nrow()
+
+# name of 1:1:1 orthologs
+single_copy_orthologs_vec <- filter(N0, Apis_mellifera == 1 & 
+                                      Polistes_canadensis == 1 & 
+                                      Polistes_dominula == 1 & 
+                                      Solenopsis_invicta == 1 & 
+                                      Vespa_crabro == 1 & 
+                                      Vespula_germanica == 1 & 
+                                      Vespa_mandarinia == 1 & 
+                                      Vespula_pensylvanica == 1 & 
+                                      Vespa_velutina == 1 & 
+                                      Vespula_vulgaris == 1) %>% 
+  select(OG)
+
+
+```
+
+There are 163 1:1 orthogroups.
+
+## Aim 3: count N:N orthologs
+
+```{r aim 3, eval = TRUE, echo = FALSE, include = TRUE}
+# There are 1595 multipleCopies orthogroups
+# each species has at least 1 copy, but can have more
+# we exclude the 1:1:1 orthologs
+gene_content_data$value[gene_content_data$category == "7multipleCopies"] <-
+  filter(N0, Apis_mellifera >= 1 & 
+                               Polistes_canadensis >= 1 & 
+                               Polistes_dominula >= 1 & 
+                               Solenopsis_invicta >= 1 & 
+                               Vespa_crabro >= 1 & 
+                               Vespula_germanica >= 1 & 
+                               Vespa_mandarinia >= 1 & 
+                               Vespula_pensylvanica >= 1 & 
+                               Vespa_velutina >= 1 & 
+                               Vespula_vulgaris >= 1 &
+           !OG %in% single_copy_orthologs_vec) %>% 
+           select(-HOG, -OG, -Gene.Tree.Parent.Clade) %>% nrow()
+
+# obtain names of orthogroups
+multipleCopies_ortho_vec <- filter(N0, Apis_mellifera >= 1 & 
+                                     Polistes_canadensis >= 1 & 
+                                     Polistes_dominula >= 1 & 
+                                     Solenopsis_invicta >= 1 & 
+                                     Vespa_crabro >= 1 & 
+                                     Vespula_germanica >= 1 & 
+                                     Vespa_mandarinia >= 1 & 
+                                     Vespula_pensylvanica >= 1 & 
+                                     Vespa_velutina >= 1 & 
+                                     Vespula_vulgaris >= 1 &
+                                     !OG %in% single_copy_orthologs_vec) %>% 
+  select(OG)
+
+
+
+```
+
+There are 1,595 N:N orthogroups.
+
+## Aim 4: count Vespa orthologs
+
+```{r aim 4, eval = TRUE, echo = FALSE, include = TRUE}
+# There are 14 Vespa-only orthologues
+# each Vespa species has at least 1 copy, but can have more
+# we exclude the 1:1:1 orthologs and the multipleCopies_vec
+Vespa_vec <- filter(N0, Apis_mellifera == 0 & 
+                               Polistes_canadensis == 0 & 
+                               Polistes_dominula == 0 & 
+                               Solenopsis_invicta == 0 & 
+                               Vespa_crabro >= 1 & 
+                               Vespula_germanica == 0 & 
+                               Vespa_mandarinia >= 1 & 
+                               Vespula_pensylvanica == 0 & 
+                               Vespa_velutina >= 1 & 
+                               Vespula_vulgaris == 0 &
+                               !OG %in% c(single_copy_orthologs_vec,
+                                          multipleCopies_ortho_vec)) %>% 
+  select(-HOG, -OG, -Gene.Tree.Parent.Clade) %>% nrow()
+
+# list of OG only found in Vespa
+vespa_ortho_vec <- filter(N0, Apis_mellifera == 0 & 
+                            Polistes_canadensis == 0 & 
+                            Polistes_dominula == 0 & 
+                            Solenopsis_invicta == 0 & 
+                            Vespa_crabro >= 1 & 
+                            Vespula_germanica == 0 & 
+                            Vespa_mandarinia >= 1 & 
+                            Vespula_pensylvanica == 0 & 
+                            Vespa_velutina >= 1 & 
+                            Vespula_vulgaris == 0 &
+                            !OG %in% c(single_copy_orthologs_vec,
+                                       multipleCopies_ortho_vec)) %>% 
+  select(OG)
+
+# make a Vespa species vec
+vespa_species_vec <- c("Vespa_crabro", "Vespa_mandarinia",
+                      "Vespa_velutina")
+
+# fill in the info
+for (this_species in vespa_species_vec){
+  gene_content_data$value[gene_content_data$category == "6Vespa" & 
+                            gene_content_data$species == this_species] <-
+    Vespa_vec
+}
+
+
+```
+
+There are 14 Vespa-only orthologues.
+
+## Aim 5: count Vespula orthologs
+
+```{r aim 5, eval = TRUE, echo = FALSE, include = TRUE}
+
+# There are 1681 Vespula-only orthogroups
+# each Vespula species has at least 1 copy, but can have more
+# we exclude the 1:1:1 orthologs and the multipleCopies_vec and the Vespa
+Vespula_vec <- filter(N0, Apis_mellifera == 0 &
+                      Polistes_canadensis == 0 &
+                      Polistes_dominula == 0 &
+                      Solenopsis_invicta == 0 &
+                      Vespa_crabro == 0 &
+                      Vespula_germanica >= 1 &
+                      Vespa_mandarinia == 0 &
+                      Vespula_pensylvanica >= 1 &
+                      Vespa_velutina == 0 &
+                      Vespula_vulgaris >= 1 &
+                      !OG %in% c(single_copy_orthologs_vec,
+                                 multipleCopies_ortho_vec,
+                                 vespa_ortho_vec)) %>%
+  select(-HOG, -OG, -Gene.Tree.Parent.Clade) %>% nrow()
+
+# list of OG only found in Vespula
+vespula_ortho_vec <- filter(N0, Apis_mellifera == 0 & 
+                              Polistes_canadensis == 0 & 
+                              Polistes_dominula == 0 & 
+                              Solenopsis_invicta == 0 & 
+                              Vespa_crabro == 0 & 
+                              Vespula_germanica >= 1 & 
+                              Vespa_mandarinia == 0 & 
+                              Vespula_pensylvanica >= 1 & 
+                              Vespa_velutina == 0 & 
+                              Vespula_vulgaris >= 1 &
+                              !OG %in% c(single_copy_orthologs_vec,
+                                         multipleCopies_ortho_vec,
+                                         vespa_ortho_vec)) %>% 
+  select(OG)
+
+# make a Vespula species vec
+vespula_species_vec <- c("Vespula_germanica", "Vespula_pensylvanica",
+                       "Vespula_vulgaris")
+
+# fill in the info
+for (this_species in vespula_species_vec){
+  gene_content_data$value[gene_content_data$category == "5Vespula" & 
+                            gene_content_data$species == this_species] <-
+    Vespula_vec
+}
+
+```
+
+There are 1,681 Vespula-only orthogroups.
+
+## Aim 6: count Polistes orthologs
+
+```{r aim 6, eval = TRUE, echo = FALSE, include = TRUE}
+
+
+# There are 23 Polistes-only orthogroups
+# each Polistes species has at least 1 copy, but can have more
+# we exclude the 1:1:1 orthologs and the multipleCopies_vec and the Vespa
+Polistes_vec <- filter(N0, Apis_mellifera == 0 &
+                        Polistes_canadensis >= 1 &
+                        Polistes_dominula >= 1 &
+                        Solenopsis_invicta == 0 &
+                        Vespa_crabro == 0 &
+                        Vespula_germanica == 0 &
+                        Vespa_mandarinia == 0 &
+                        Vespula_pensylvanica == 0 &
+                        Vespa_velutina == 0 &
+                        Vespula_vulgaris == 0 &
+                        !OG %in% c(single_copy_orthologs_vec,
+                                   multipleCopies_ortho_vec,
+                                   vespa_ortho_vec, vespula_species_vec)) %>%
+  select(-HOG, -OG, -Gene.Tree.Parent.Clade) %>% nrow()
+
+# list of OG only found in Polistes
+polistes_ortho_vec <- filter(N0,  Apis_mellifera == 0 & 
+                               Polistes_canadensis >= 1 & 
+                               Polistes_dominula >= 1 & 
+                               Solenopsis_invicta == 0 & 
+                               Vespa_crabro == 0 & 
+                               Vespula_germanica == 0 & 
+                               Vespa_mandarinia == 0 & 
+                               Vespula_pensylvanica == 0 & 
+                               Vespa_velutina == 0 & 
+                               Vespula_vulgaris == 0 &
+                               !OG %in% c(single_copy_orthologs_vec,
+                                  multipleCopies_ortho_vec,
+                                  vespa_ortho_vec, vespula_species_vec)) %>% 
+  select(OG)
+
+# make a polistes species vec
+polistes_species_vec <- c("Polistes_canadensis", "Polistes_dominula")
+
+# fill in the info
+for (this_species in polistes_species_vec){
+  gene_content_data$value[gene_content_data$category == "4Polistes" & 
+                            gene_content_data$species == this_species] <-
+    Polistes_vec
+}
+
+```
+
+There are 23 Polistes-only orthogroups.
+
+## Aim 7: count species-specific multiple-copy orthologs
+
+```{r aim 7, eval = TRUE, echo = FALSE, include = TRUE}
+# from N0.tsv, calculate the number of orthogroups that are specific to one
+# species and with multiple copies
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Apis_mellifera"] <- 54
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Polistes_canadensis"] <- 11
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Polistes_dominula"] <- 21
+                 
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Solenopsis_invicta"] <- 355
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Vespa_crabro"] <- 69
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Vespula_germanica"] <- 18
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Vespa_mandarinia"] <- 9
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Vespula_pensylvanica"] <- 7
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Vespa_velutina"] <- 51
+
+gene_content_data$value[gene_content_data$category == 
+    "2SpeciesSpecificMultipleCopies" & 
+    gene_content_data$species == "Vespula_vulgaris"] <- 4
+
+
+```
+
+There are between 4 and 355 orthogroups that are duplicated only in one species.
+
+## Aim 8: : count species-specific single-copy orthologs
+
+```{r aim 8, eval = TRUE, echo = FALSE, include = TRUE}
+# Each species has a specific number of protein-coding genes
+total_genes_df <- data.frame(species = species_vec,
+                             proteinCodingGenes = c(12332,
+                                                    10666,
+                                                    11241,
+                                                    16609,
+                                                    16689,
+                                                    17187,
+                                                    11981,
+                                                    18491,
+                                                    13377,
+                                                    15512),
+                             genesInOrthoFinder = c(9922,
+                                                    9876,
+                                                    10179,
+                                                    14790,
+                                                    16689,
+                                                    17187,
+                                                    10107,
+                                                    18491,
+                                                    13377,
+                                                    15512))
+# Each species has a specific number of protein-coding 
+# genes that went into OrthoFinder
+
+
+# genes not included in OrthoFinder are species-specific
+for(i in 1:length(species_vec)){
+  
+  gene_content_data$value[gene_content_data$category == 
+    "3SpeciesSpecificSingleCopy" & 
+    gene_content_data$species == species_vec[i]] <- 
+    total_genes_df$proteinCodingGenes[i] - total_genes_df$genesInOrthoFinder[i]
+}
+
+
+```
+
+There are between 0 and 2,410 genes that are species-specific and 
+single-copy.
+
+## Aim 9: : count genes that do not fit in any category, "8Others"
+
+```{r aim 9, eval = TRUE, echo = FALSE, include = TRUE}
+
+
+# genes not included in OrthoFinder are species-specific
+for(i in 1:length(species_vec)){
+  other_genes_num <- (total_genes_df$proteinCodingGenes[total_genes_df$species == 
+                                         species_vec[i]]) - 
+    sum(gene_content_data$value[ 
+     gene_content_data$species == species_vec[i]]) 
+  
+
+  
+  gene_content_data$value[gene_content_data$category == "1Other" & 
+   gene_content_data$species == species_vec[i]] <- other_genes_num
+}
+
+
+```
+
+There are between 8,084 and 15,045 genes that are species-specific and 
+single-copy.
+
+## Aim 10: : plot
+
+```{r aim 10, eval = TRUE, echo = FALSE, include = TRUE}
+
+# data include species name, number of genes per category
+
+# check that each species has the relevent number of total genes
+
+
+diverging_color_vec <- c(
+                         
+                        
+                         "#8da0cb",
+                         "#e78ac3",
+                         "#ffd92f",
+                         "#e5c494",
+                         "#b3b3b3",
+                         "#66c2a5",
+                         "#a6d854",
+                          "#fc8d62")
+                                 
+
+# plot assembly content (busco and GC%)
+ggplot(data = gene_content_data,
+       aes(fill = category, 
+           y = value,
+           x = species )) + 
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_manual(values = diverging_color_vec) + 
+  theme_bw() + coord_flip()
+
+ggsave("~/Google Drive/Sumner_projects/2020-vespa_genomes/manuscript/figures/2023-03-gene-barplot.pdf")
+
+```
+```{r record versions of session, eval = TRUE, echo = FALSE, include = FALSE}
+# record versions of R and packages here
+	
+save.image(file='~/Google Drive/Sumner_projects/2020-vespa_genomes/manuscript/figures/2023-03-gene-barplot.RData')
+sessionInfo()
+# R version 3.6.3 (2020-02-29)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: OS X  12.5.1
+# 
+# Matrix products: default
+# LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+# 
+# locale:
+# [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+# 
+# attached base packages:
+# [1] stats     graphics  grDevices utils     datasets  methods   base     
+# 
+# other attached packages:
+# [1] forcats_0.5.1   stringr_1.4.0   dplyr_1.0.5     purrr_0.3.4     readr_1.4.0     tidyr_1.1.3     tibble_3.1.6    ggplot2_3.3.5   tidyverse_1.3.0
+# 
+# loaded via a namespace (and not attached):
+#  [1] xfun_0.34        tidyselect_1.1.0 haven_2.3.1      colorspace_2.0-3 vctrs_0.4.1      generics_0.1.0   htmltools_0.5.3  yaml_2.2.1       utf8_1.2.2      
+# [10] rlang_1.0.2      pillar_1.7.0     glue_1.6.2       withr_2.5.0      DBI_1.1.1        dbplyr_2.1.0     modelr_0.1.8     readxl_1.3.1     lifecycle_1.0.1 
+# [19] munsell_0.5.0    gtable_0.3.0     cellranger_1.1.0 rvest_1.0.0      evaluate_0.14    labeling_0.4.2   knitr_1.31       fastmap_1.1.0    fansi_1.0.3     
+# [28] broom_0.7.5      Rcpp_1.0.6       scales_1.2.0     backports_1.2.1  jsonlite_1.7.2   farver_2.1.0     fs_1.5.0         hms_1.0.0        digest_0.6.29   
+# [37] stringi_1.5.3    grid_3.6.3       cli_3.3.0        tools_3.6.3      magrittr_2.0.3   crayon_1.5.1     pkgconfig_2.0.3  ellipsis_0.3.2   xml2_1.3.2      
+# [46] reprex_1.0.0     lubridate_1.7.10 assertthat_0.2.1 rmarkdown_2.17   httr_1.4.2       rstudioapi_0.13  R6_2.5.1         compiler_3.6.3  
+```
